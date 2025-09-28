@@ -248,6 +248,10 @@ const ImageReview: React.FC = () => {
                           <p className="text-2xl font-bold text-gray-900">{Math.round(caseItem.fraud_score * 100)}%</p>
                         </div>
                         <div>
+                          <p className="text-sm text-gray-600">AI Score</p>
+                          <p className="text-2xl font-bold text-gray-900">{Math.round(caseItem.ai_score * 100)}%</p>
+                        </div>
+                        <div>
                           <p className="text-sm text-gray-600">Total Cost</p>
                           <p className="text-2xl font-bold text-gray-900">${caseItem.cost || 0}</p>
                         </div>
