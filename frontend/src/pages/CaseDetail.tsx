@@ -9,7 +9,6 @@ import {
   faDollarSign,
   faCalendarAlt,
   faSpinner,
-  faEye,
   faInfoCircle,
   faBan,
   faRobot

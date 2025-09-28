@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
+import { 
   faArrowLeft,
   faArrowUpFromBracket,
-  faCheckCircle,
+  faCheckCircle, 
   faExclamationTriangle,
   faFile,
   faFileImage,
@@ -13,20 +13,21 @@ import {
   faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
 import { uploadImage, analyzeImage, type UploadResult, type AnalysisResult } from '../api/imageUpload';
-import {
+import { 
   fetchAnalysisNames,
-  saveAnalysisMetadata,
+  saveAnalysisMetadata, 
   saveImageAnalysis,
   updateAnalysisMetadata,
   type AnalysisMetadata,
   type ImageAnalysis,
 } from '../api/database';
 import { useStats } from '../contexts/StatsContext';
+import ResultsDisplay from '../components/ResultsDisplay';
 import { toast } from 'react-toastify';
 
 /* =========================
-   Types
-   ========================= */
+  Types
+========================= */
 type MediaKind = 'image' | 'pdf';
 
 interface SelectedItem {
@@ -64,6 +65,20 @@ interface ProcessedPdfItem extends ProcessedItemBase {
 
 type ProcessedItem = ProcessedImageItem | ProcessedPdfItem;
 
+// Interface for ResultsDisplay component
+interface UploadedFile {
+  id: string;
+  file: File;
+  url?: string;
+  status: 'uploading' | 'uploaded' | 'analyzing' | 'completed' | 'error';
+  analysis?: AnalysisResult['data'];
+  error?: string;
+  progress?: number;
+  fraudRisk?: number;
+  keyIndicators?: string[];
+  cost?: number;
+}
+
 interface BatchState {
   isAnalyzing: boolean;
   totalFiles: number;
@@ -72,17 +87,10 @@ interface BatchState {
 }
 
 /* =========================
-   Helpers
-   ========================= */
+  Helpers
+========================= */
 const toId = () => Math.random().toString(36).slice(2, 11);
 
-const riskLabel = (p: number) => (p >= 0.7 ? 'HIGH' : p >= 0.4 ? 'MEDIUM' : 'LOW');
-const riskBadgeClass = (lvl: string) =>
-  lvl === 'HIGH'
-    ? 'text-red-700 bg-red-50'
-    : lvl === 'MEDIUM'
-    ? 'text-amber-700 bg-amber-50'
-    : 'text-green-700 bg-green-50';
 
 const bytesToMB = (b: number) => (b / 1024 / 1024).toFixed(2);
 
@@ -98,8 +106,8 @@ const toBase64 = (file: File) =>
   });
 
 /* =========================
-   Component
-   ========================= */
+  Component
+========================= */
 const Upload: React.FC = () => {
   const navigate = useNavigate();
   const { updateStats, refreshStats } = useStats();
@@ -114,6 +122,26 @@ const Upload: React.FC = () => {
   const [comprehensiveResult, setComprehensiveResult] = useState<any>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Conversion function to map ProcessedItem to UploadedFile for ResultsDisplay
+  const convertToUploadedFiles = (items: ProcessedItem[]): UploadedFile[] => {
+    return items
+      .filter(item => item.kind === 'image' && item.status === 'completed')
+      .map(item => {
+        const img = item as ProcessedImageItem;
+        return {
+          id: img.id,
+          file: img.file,
+          url: img.url,
+          status: img.status as 'uploading' | 'uploaded' | 'analyzing' | 'completed' | 'error',
+          analysis: img.analysis,
+          progress: img.progress,
+          fraudRisk: img.fraudRisk,
+          keyIndicators: img.keyIndicators,
+          cost: img.cost,
+        };
+      });
+  };
 
   // Load existing analysis names (to avoid duplicates)
   useEffect(() => {
@@ -192,7 +220,7 @@ const Upload: React.FC = () => {
       toast.error('Analysis title already exists. Choose another title.');
       return;
     }
-
+    
     // Prepare UI state
     setItems(
       selected.map<ProcessedItem>((s) =>
@@ -344,7 +372,7 @@ const Upload: React.FC = () => {
               it.id === s.id
                 ? {
                     ...(it as ProcessedPdfItem),
-                    status: 'completed',
+                      status: 'completed',
                     progress: 100,
                     extractedData: parsed.canonical,
                     fraudPrediction: first,
@@ -436,7 +464,7 @@ const Upload: React.FC = () => {
 
     // refresh global stats
     refreshStats();
-
+    
     setBatch((b) => ({ ...b, isAnalyzing: false, currentFile: undefined }));
     toast.success('Analysis complete!');
   };
@@ -448,18 +476,18 @@ const Upload: React.FC = () => {
   const cardTitle = (
     <div className="flex items-center mb-6">
       {!batch.isAnalyzing && (
-        <button
-          className="mr-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          onClick={() => navigate('/dashboard')}
-        >
-          <FontAwesomeIcon icon={faArrowLeft} className="text-gray-600" />
-        </button>
+            <button 
+              className="mr-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={() => navigate('/dashboard')}
+            >
+              <FontAwesomeIcon icon={faArrowLeft} className="text-gray-600" />
+            </button>
       )}
       <div className="flex items-center">
         <FontAwesomeIcon icon={faShieldAlt} className="text-2xl text-blue-600 mr-3" />
         <h2 className="text-2xl font-semibold text-gray-900">Upload & Analyze (Images + PDFs)</h2>
-      </div>
-    </div>
+            </div>
+          </div>
   );
 
   return (
@@ -472,7 +500,7 @@ const Upload: React.FC = () => {
         </div>
 
         {/* Unified card */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
           {cardTitle}
 
           {/* Dropzone */}
@@ -484,24 +512,24 @@ const Upload: React.FC = () => {
             onDragLeave={onDragLeave}
             onDrop={onDrop}
             onClick={onPickClick}
-          >
-            <div className="text-center">
-              <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-6">
-                <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-3xl text-blue-600" />
-              </div>
+            >
+                <div className="text-center">
+                  <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-6">
+                    <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-3xl text-blue-600" />
+                  </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
                 Drop Images/PDFs here, or click to browse
               </h3>
               <p className="text-gray-600 mb-4">
                 Selected: <span className="font-medium">{counts.total}</span> files
                 &nbsp; (Images: {counts.img} · PDFs: {counts.pdf})
-              </p>
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 mx-auto transition-colors">
-                <FontAwesomeIcon icon={faFile} />
-                <span>Browse Files</span>
-              </button>
+                  </p>
+                  <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 mx-auto transition-colors">
+                    <FontAwesomeIcon icon={faFile} />
+                    <span>Browse Files</span>
+                  </button>
               <p className="text-sm text-gray-500 mt-3">Supports: JPG/PNG, PDF • Max size depends on backend</p>
-            </div>
+                </div>
             <input
               ref={inputRef}
               type="file"
@@ -510,7 +538,7 @@ const Upload: React.FC = () => {
               onChange={onInputChange}
               className="hidden"
             />
-          </div>
+              </div>
 
           {/* Selected list */}
           {selected.length > 0 && (
@@ -531,43 +559,43 @@ const Upload: React.FC = () => {
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate" title={s.file.name}>
                           {s.file.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
+                      </p>
+                      <p className="text-xs text-gray-500">
                           {s.kind.toUpperCase()} • {bytesToMB(s.file.size)} MB
-                        </p>
+                      </p>
                       </div>
                     </div>
-                    <button
+                      <button
                       onClick={() => remove(s.id)}
-                      className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
                       title="Remove"
-                    >
-                      ×
-                    </button>
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
           )}
 
           {/* Analysis Title */}
           <div className="mt-6">
-            <label htmlFor="analysisTitle" className="block text-sm font-medium text-gray-700 mb-2">
-              Analysis Title
-            </label>
-            <input
-              id="analysisTitle"
-              type="text"
-              value={analysisTitle}
-              onChange={(e) => setAnalysisTitle(e.target.value)}
+                  <label htmlFor="analysisTitle" className="block text-sm font-medium text-gray-700 mb-2">
+                    Analysis Title
+                  </label>
+                  <input
+                    id="analysisTitle"
+                    type="text"
+                    value={analysisTitle}
+                    onChange={(e) => setAnalysisTitle(e.target.value)}
               placeholder="e.g., Claim Case Bundle - Sep 2025"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
           {/* Single Analyze button */}
           <div className="mt-6 text-center">
-            <button
+                  <button
               onClick={onAnalyze}
               disabled={batch.isAnalyzing || selected.length === 0}
               className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-8 py-4 rounded-lg inline-flex items-center space-x-3 transition-colors"
@@ -579,13 +607,13 @@ const Upload: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <FontAwesomeIcon icon={faShieldAlt} />
+                    <FontAwesomeIcon icon={faShieldAlt} />
                   <span>Analyze {selected.length} File(s)</span>
                 </>
               )}
-            </button>
-          </div>
-
+                  </button>
+            </div>
+            
           {/* Batch progress */}
           {batch.isAnalyzing && (
             <div className="mt-8">
@@ -595,13 +623,13 @@ const Upload: React.FC = () => {
                   {batch.currentFile ? ` • Current: ${batch.currentFile}` : ''}
                 </span>
                 <span className="text-sm text-blue-700 font-medium">{overallProgress}%</span>
-              </div>
+          </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
-                <div
+                <div 
                   className="bg-blue-600 h-3 rounded-full transition-all duration-300"
                   style={{ width: `${overallProgress}%` }}
                 />
-              </div>
+            </div>
 
               {/* Per-item progress */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
@@ -628,7 +656,7 @@ const Upload: React.FC = () => {
                         )}
                       </div>
                     </div>
-
+                    
                     {it.status !== 'completed' && (
                       <div className="mt-2">
                         <div className="w-full bg-gray-200 rounded-full h-2">
@@ -644,199 +672,26 @@ const Upload: React.FC = () => {
                     {it.status === 'error' && (
                       <p className="mt-2 text-xs text-red-600">{it.error}</p>
                     )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Results combined */}
-          {!batch.isAnalyzing && items.some((i) => i.status === 'completed') && (
-            <div className="mt-10">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Combined Results</h3>
-              <div className="space-y-3">
-                {items
-                  .filter((i) => i.status === 'completed')
-                  .map((it) => {
-                    if (it.kind === 'image') {
-                      const img = it as ProcessedImageItem;
-                      const riskPct = img.fraudRisk ?? 0;
-                      const lvl = riskLabel(riskPct / 100);
-                      return (
-                        <div key={img.id} className="border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <FontAwesomeIcon icon={faFileImage} className="text-gray-500" />
-                              <span className="font-medium text-gray-900">{img.file.name}</span>
-                              <span className={`ml-2 text-xs px-2 py-1 rounded-full ${riskBadgeClass(lvl)}`}>
-                                {lvl} RISK
-                              </span>
-                            </div>
-                            <div className="text-sm text-gray-700">
-                              Fraud Probability: <span className="font-semibold">{riskPct}%</span>
-                            </div>
-                          </div>
-                          {img.keyIndicators?.length ? (
-                            <p className="text-xs text-gray-600 mt-2">
-                              Indicators: {img.keyIndicators.join(' • ')}
-                            </p>
-                          ) : null}
-                          {typeof img.cost === 'number' && (
-                            <p className="text-xs text-gray-600 mt-1">Estimated saved cost (demo): ${img.cost.toLocaleString()}</p>
-                          )}
-                        </div>
-                      );
-                    } else {
-                      const pdf = it as ProcessedPdfItem;
-                      const p = Number(pdf.fraudPrediction?.proba || 0);
-                      const lvl = riskLabel(p);
-                      return (
-                        <div key={pdf.id} className="border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <FontAwesomeIcon icon={faFilePdf} className="text-red-500" />
-                              <span className="font-medium text-gray-900">{pdf.file.name}</span>
-                              <span className={`ml-2 text-xs px-2 py-1 rounded-full ${riskBadgeClass(lvl)}`}>
-                                {lvl} RISK
-                              </span>
-                            </div>
-                            <div className="text-sm text-gray-700">
-                              Fraud Probability: <span className="font-semibold">{(p * 100).toFixed(1)}%</span>
-                              {typeof pdf.fraudPrediction?.threshold === 'number' && (
-                                <span className="ml-2 text-gray-500 text-xs">(thr={pdf.fraudPrediction.threshold})</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-gray-600 mt-2">
-                            <div><span className="font-medium">Decision:</span> {pdf.fraudPrediction?.decision === 1 ? 'FRAUD' : 'LEGIT'}</div>
-                            <div><span className="font-medium">Claim Amount:</span> ${Number(pdf.extractedData?.ClaimAmount || 0).toLocaleString()}</div>
-                            <div><span className="font-medium">Make/Year:</span> {pdf.extractedData?.Make} {pdf.extractedData?.Year}</div>
-                          </div>
-                        </div>
-                      );
-                    }
-                  })}
-              </div>
-
-              {/* Comprehensive Analysis Results */}
-              {comprehensiveResult && (
-                <div className="mt-8 border border-gray-200 rounded-lg p-6 bg-gradient-to-r from-blue-50 to-purple-50">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      <FontAwesomeIcon icon={faShieldAlt} className="text-2xl text-blue-600" />
-                      <h4 className="text-xl font-bold text-gray-900">Comprehensive Fraud Risk Analysis</h4>
-                    </div>
-                    {comprehensiveResult.aggregateRisk && (
-                      <span className={`text-sm px-4 py-2 rounded-full font-semibold ${riskBadgeClass(comprehensiveResult.aggregateRisk.level)}`}>
-                        {comprehensiveResult.aggregateRisk.level} RISK
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Overall Risk Score Card */}
-                  {comprehensiveResult.aggregateRisk && (
-                    <div className="bg-white rounded-lg p-4 mb-4 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <FontAwesomeIcon icon={faShieldAlt} className="text-blue-500" />
-                          <span className="font-semibold text-gray-800">Overall Risk Score</span>
-                        </div>
-                        <div className="text-2xl font-bold text-gray-900">
-                          {(comprehensiveResult.aggregateRisk.overall * 100).toFixed(1)}%
-                        </div>
-                      </div>
-                      <div className="mt-2 w-full bg-gray-200 rounded-full h-3">
-                        <div 
-                          className={`h-3 rounded-full transition-all duration-500 ${
-                            comprehensiveResult.aggregateRisk.level === 'HIGH' ? 'bg-red-500' : 
-                            comprehensiveResult.aggregateRisk.level === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'
-                          }`}
-                          style={{ width: `${comprehensiveResult.aggregateRisk.overall * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* AI Analysis Results */}
-                  {comprehensiveResult.aiAnalysis ? (
-                    <div className="bg-white rounded-lg p-4 shadow-sm">
-                      <h5 className="font-semibold text-gray-800 mb-3 flex items-center">
-                        <FontAwesomeIcon icon={faShieldAlt} className="text-green-600 mr-2" />
-                        AI Comprehensive Analysis Report
-                      </h5>
-                      
-                      {/* Key Findings */}
-                      {comprehensiveResult.aiAnalysis.key_findings && (
-                        <div className="mb-4">
-                          <h6 className="font-medium text-gray-700 mb-2">🔍 Key Findings</h6>
-                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-800">{comprehensiveResult.aiAnalysis.key_findings}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Risk Factors */}
-                      {comprehensiveResult.aiAnalysis.risk_factors && comprehensiveResult.aiAnalysis.risk_factors.length > 0 && (
-                        <div className="mb-4">
-                          <h6 className="font-medium text-gray-700 mb-2">⚠️ Risk Factors</h6>
-                          <ul className="space-y-1">
-                            {comprehensiveResult.aiAnalysis.risk_factors.map((factor: string, index: number) => (
-                              <li key={index} className="text-sm text-gray-700 flex items-start">
-                                <span className="text-red-500 mr-2">•</span>
-                                {factor}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Recommendations */}
-                      {comprehensiveResult.aiAnalysis.recommendations && comprehensiveResult.aiAnalysis.recommendations.length > 0 && (
-                        <div className="mb-4">
-                          <h6 className="font-medium text-gray-700 mb-2">💡 Recommendations</h6>
-                          <ul className="space-y-1">
-                            {comprehensiveResult.aiAnalysis.recommendations.map((rec: string, index: number) => (
-                              <li key={index} className="text-sm text-gray-700 flex items-start">
-                                <span className="text-blue-500 mr-2">•</span>
-                                {rec}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Detailed Analysis */}
-                      {comprehensiveResult.aiAnalysis.detailed_analysis && (
-                        <div className="mb-4">
-                          <h6 className="font-medium text-gray-700 mb-2">📊 Detailed Analysis</h6>
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                            <p className="text-sm text-gray-800">{comprehensiveResult.aiAnalysis.detailed_analysis}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start">
-                      <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600 mr-3 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-amber-800">Unable to generate AI analysis results.</p>
-                        <p className="text-xs text-amber-700 mt-1">Google API key is not configured or network error occurred.</p>
-                      </div>
-                    </div>
-                  )}
                 </div>
-              )}
+              ))}
+            </div>
+          </div>
+        )}
 
-              <div className="mt-6 text-center">
-                <button
+        {/* Results Display */}
+          {!batch.isAnalyzing && items.some((i) => i.status === 'completed') && (
+          <ResultsDisplay 
+              files={convertToUploadedFiles(items)}
+              actionButton={
+              <button
                   onClick={() => navigate('/dashboard')}
                   className="inline-flex items-center px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                >
+              >
                   Back to Dashboard
-                </button>
-              </div>
-            </div>
-          )}
+              </button>
+              }
+          />
+        )}
         </div>
       </div>
     </div>
