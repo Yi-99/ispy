@@ -8,6 +8,8 @@ const path = require('path');
 const fs = require('fs');
 
 const { detectImage, detectImageFromUrl, analyzeForFraud } = require('./service/aiImageDetect');
+const documentScanRouter = require('./service/documentScan');
+const { spawn } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -42,8 +44,8 @@ const upload = multer({
 });
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // CORS middleware
 app.use((req, res, next) => {
@@ -56,6 +58,9 @@ app.use((req, res, next) => {
     next();
   }
 });
+
+// Document scan routes
+app.use('/api', documentScanRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -89,6 +94,76 @@ app.post('/analyze_fraud', async (req, res) => {
   }
 });
 
+// Fraud prediction endpoint using Python scorer
+app.post('/predict', async (req, res) => {
+  try {
+    const payload = req.body;
+    if (!payload) {
+      return res.status(400).json({ error: 'No payload provided' });
+    }
+
+    // Call Python scorer
+    const py = spawn('python3', ['service/scorer.py'], {
+      env: {
+        ...process.env,
+        MODEL_BUNDLE_PATH: 'service/fraud_ensemble_bundle.joblib',
+        THRESHOLD: '0.45'
+      }
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    py.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    py.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    py.on('error', (err) => {
+      console.error('Python spawn error:', err);
+      return res.status(500).json({ error: `Python spawn error: ${err.message}` });
+    });
+
+    py.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Python scorer exited with code ${code}, stderr: ${stderr}`);
+        return res.status(500).json({ 
+          error: `Python scorer failed with code ${code}`, 
+          stderr: stderr 
+        });
+      }
+
+      try {
+        const result = JSON.parse(stdout);
+        res.json({
+          success: true,
+          data: result
+        });
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        res.status(500).json({ 
+          error: 'Failed to parse Python output', 
+          stdout: stdout,
+          parseError: parseError.message 
+        });
+      }
+    });
+
+    // Send payload to Python script
+    py.stdin.write(JSON.stringify(payload));
+    py.stdin.end();
+
+  } catch (error) {
+    console.error('Error in /predict:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
 
 // Basic root endpoint
 app.get('/', (req, res) => {
@@ -101,7 +176,9 @@ app.get('/', (req, res) => {
       'POST /detect_image_url': 'Detect objects in image from URL',
       'POST /upload_and_detect': 'Upload image file and detect objects',
       'POST /analyze_fraud': 'Analyze image URL for fraud detection',
-      'POST /upload_and_analyze': 'Upload image file and analyze for fraud'
+      'POST /upload_and_analyze': 'Upload image file and analyze for fraud',
+      'POST /api/parse-claim-pdf': 'Parse insurance claim PDF and extract structured data',
+      'POST /predict': 'Predict fraud probability using ML model'
     }
   });
 });

@@ -8,6 +8,7 @@
     "dev": "NODE_ENV=local nodemon server.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@huggingface/inference": "^4.9.0",
     "axios": "^1.12.2",
     "dotenv": "^17.2.2",
