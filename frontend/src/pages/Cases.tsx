@@ -224,7 +224,7 @@ const Cases: React.FC = () => {
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <h3 className="text-xl font-bold text-gray-900 mb-1">
-                            {caseItem.filename.replace(/\.(jpg|jpeg|png|gif)$/i, '')} - {caseItem.risk_level === 'HIGH' ? 'Front-end collision' : caseItem.risk_level === 'MEDIUM' ? 'Side panel damage' : 'Minor rear damage'}
+                            {caseItem.analysis_name}
                           </h3>
                           <p className="text-sm text-gray-500">
                             Analyzed {formatDate(caseItem.created_at || new Date().toISOString())}
