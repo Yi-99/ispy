@@ -1,13 +1,61 @@
+const dotenv = require('dotenv');
+
+require('dotenv').config({ path: '.env.local' });
+
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const { detectImage, detectImageFromUrl, analyzeForFraud } = require('./service/aiImageDetect');
+
 const app = express();
-const PORT = process.env.PORT || 3000;
-const { spawn } = require('child_process');
-const PYTHON_BIN = process.env.PYTHON_BIN || 'python3';
-const MODEL_BUNDLE_PATH = process.env.MODEL_BUNDLE_PATH || 'service/fraud_ensemble_bundle.joblib';
-const THRESHOLD = process.env.THRESHOLD || '0.45';
+const PORT = process.env.PORT || 8000;
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = 'uploads/';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
 
 // Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// CORS middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -19,58 +67,103 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Detect image endpoint
-app.post('/detect_image', (req, res) => {
-  const image_path = req.body.image_path;
-  const result = detect_image(image_path);
-  res.json({ result });
+// Detect image from file path endpoint
+app.post('/detect_image', async (req, res) => {
+  try {
+    const { image_path } = req.body;
+    if (!image_path) {
+      return res.status(400).json({ error: 'image_path is required' });
+    }
+    
+    const result = await detectImage(image_path);
+    res.json({ result });
+  } catch (error) {
+    console.error('Error in /detect_image:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
-//Fraud prediction endpoint
-app.post('/predict', async (req, res) => {
+// Detect image from URL endpoint
+app.post('/detect_image_url', async (req, res) => {
   try {
-    // 유연 입력: 단건 객체 or 배열
-    const payload = req.body;
+    const { image_url } = req.body;
+    if (!image_url) {
+      return res.status(400).json({ error: 'image_url is required' });
+    }
+    
+    const result = await detectImageFromUrl(image_url);
+    res.json({ result });
+  } catch (error) {
+    console.error('Error in /detect_image_url:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    // Python scorer 호출
-    const py = spawn(PYTHON_BIN, ['service/scorer.py'], {
-      env: {
-        ...process.env,
-        MODEL_BUNDLE_PATH,
-        THRESHOLD
-      }
+// Upload and detect image endpoint
+app.post('/upload_and_detect', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+    
+    const imagePath = req.file.path;
+    const result = await detectImage(imagePath);
+    
+    // Clean up uploaded file after processing
+    fs.unlinkSync(imagePath);
+    
+    res.json({ result });
+  } catch (error) {
+    console.error('Error in /upload_and_detect:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Enhanced fraud detection endpoint
+app.post('/analyze_fraud', async (req, res) => {
+  try {
+    const { image_url } = req.body;
+    if (!image_url) {
+      return res.status(400).json({ error: 'image_url is required' });
+    }
+    
+    const result = await analyzeForFraud(image_url);
+    res.json({ 
+      success: true,
+      data: result
     });
-
-    let stdout = '';
-    let stderr = '';
-
-    py.stdout.on('data', (d) => (stdout += d.toString()));
-    py.stderr.on('data', (d) => (stderr += d.toString()));
-
-    py.on('error', (err) => {
-      console.error('Python spawn error:', err);
+  } catch (error) {
+    console.error('Error in /analyze_fraud:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
     });
+  }
+});
 
-    py.on('close', (code) => {
-      if (code !== 0) {
-        console.error('Python scorer exited with code', code, 'stderr:', stderr);
-        return res.status(500).json({ error: 'Scoring failed', detail: stderr });
-      }
-      try {
-        const out = JSON.parse(stdout);
-        return res.json(out);
-      } catch (e) {
-        console.error('JSON parse error:', e, stdout);
-        return res.status(500).json({ error: 'Invalid scorer output', detail: stdout });
-      }
+// Upload and analyze for fraud endpoint
+app.post('/upload_and_analyze', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+    
+    const imagePath = req.file.path;
+    const result = await analyzeForFraud(imagePath);
+    
+    // Clean up uploaded file after processing
+    fs.unlinkSync(imagePath);
+    
+    res.json({ 
+      success: true,
+      data: result
     });
-
-    // stdin에 payload 전달
-    py.stdin.write(JSON.stringify(payload));
-    py.stdin.end();
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Unexpected server error' });
+  } catch (error) {
+    console.error('Error in /upload_and_analyze:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
   }
 });
 
@@ -80,7 +173,14 @@ app.get('/', (req, res) => {
   res.json({
     message: 'iSpy Backend Server',
     version: '1.0.0',
-    health: '/health'
+    health: '/health',
+    endpoints: {
+      'POST /detect_image': 'Detect objects in image from file path',
+      'POST /detect_image_url': 'Detect objects in image from URL',
+      'POST /upload_and_detect': 'Upload image file and detect objects',
+      'POST /analyze_fraud': 'Analyze image URL for fraud detection',
+      'POST /upload_and_analyze': 'Upload image file and analyze for fraud'
+    }
   });
 });
 
