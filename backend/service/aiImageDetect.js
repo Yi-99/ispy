@@ -2,6 +2,50 @@ const { InferenceClient } = require('@huggingface/inference');
 const fs = require('fs');
 const axios = require('axios');
 
+/**
+ * Calculate fraud score based on AI score using business rules
+ * @param {number} aiScore - The AI score from the analysis (0-1 range)
+ * @returns {number} Calculated fraud score
+ */
+function calculateFraudScore(aiScore) {
+    // Ensure aiScore is within valid range
+    const normalizedAiScore = Math.max(0, Math.min(1, aiScore));
+    
+    console.log(`🎯 Calculating fraud score for AI score: ${normalizedAiScore}`);
+    
+    // If AI score is 0.9+ (high confidence AI-generated)
+    if (normalizedAiScore >= 0.9) {
+        // Generate random number ±0.1 of the AI score, but don't exceed 1
+        const baseScore = normalizedAiScore;
+        const variation = 0.1;
+        const randomVariation = (Math.random() - 0.5) * 2 * variation; // -0.1 to +0.1
+        const fraudScore = Math.max(0, Math.min(1, baseScore + randomVariation));
+        const roundedScore = Math.round(fraudScore * 100) / 100;
+        console.log(`   High confidence (${normalizedAiScore}): ${baseScore} ± ${variation} = ${roundedScore}`);
+        return roundedScore;
+    }
+    
+    // If AI score is around 0 (low confidence AI-generated)
+    if (normalizedAiScore <= 0.1) {
+        // Generate random number between 0-0.68
+        const fraudScore = Math.random() * 0.68;
+        const roundedScore = Math.round(fraudScore * 100) / 100;
+        console.log(`   Low confidence (${normalizedAiScore}): random(0-0.68) = ${roundedScore}`);
+        return roundedScore;
+    }
+    
+    // For scores between 0.1 and 0.9, use a linear interpolation
+    // This creates a smooth transition between the two ranges
+    const lowRangeMax = 0.68;
+    const highRangeMin = 0.8; // 0.9 - 0.1
+    const interpolation = (normalizedAiScore - 0.1) / 0.8; // 0 to 1 as aiScore goes from 0.1 to 0.9
+    
+    const fraudScore = lowRangeMax + (highRangeMin - lowRangeMax) * interpolation;
+    const roundedScore = Math.round(fraudScore * 100) / 100;
+    console.log(`   Medium confidence (${normalizedAiScore}): interpolation = ${roundedScore}`);
+    return roundedScore;
+}
+
 // For Node.js 18+, use built-in Blob
 let Blob;
 try {
@@ -132,6 +176,11 @@ async function analyzeForFraud(imageUrl) {
             }
         });
 
+        // Calculate the proper fraud score using business rules
+        const calculatedFraudScore = calculateFraudScore(aiScore);
+        fraudScore = calculatedFraudScore; // Replace the 0 with actual calculation
+        console.log(`🎯 Fraud Score Calculation: AI Score ${aiScore} → Fraud Score ${calculatedFraudScore}`);
+
         // Determine if AI-generated based on aiScore
         const isAiGenerated = aiScore > 0.5;
         
@@ -143,23 +192,23 @@ async function analyzeForFraud(imageUrl) {
             aiAnalysis = `No significant trace of AI manipulation or generation indicators detected. AI Score: ${(Math.floor(aiScore * 100) / 100).toFixed(2)}. Analysis appears consistent with legitimate damage.`;
         }
 
-        // Determine if fraudulent based on score
-        isFraudulent = aiScore > 0.75;
+        // Determine if fraudulent based on CALCULATED fraud score (not AI score)
+        isFraudulent = calculatedFraudScore > 0.75;
         
-        // Determine risk level based on AI score
+        // Determine risk level based on CALCULATED fraud score
         let riskLevel = 'LOW';
-        if (aiScore > 0.7) {
+        if (calculatedFraudScore > 0.7) {
             riskLevel = 'HIGH';
-        } else if (aiScore > 0.4) {
+        } else if (calculatedFraudScore > 0.4) {
             riskLevel = 'MEDIUM';
         }
 
         // Generate analysis text
         let fraudAnalysis = '';
         if (isFraudulent) {
-            fraudAnalysis = `Multiple indicators of potential fraud detected. Fraud score: ${(fraudScore * 100).toFixed(1)}%. ${fraudIndicators.length > 0 ? 'Detected issues: ' + fraudIndicators.join(', ') : ''}`;
+            fraudAnalysis = `Multiple indicators of potential fraud detected. Fraud score: ${(calculatedFraudScore * 100).toFixed(1)}%. ${fraudIndicators.length > 0 ? 'Detected issues: ' + fraudIndicators.join(', ') : ''}`;
         } else {
-            fraudAnalysis = `No significant fraud indicators detected. Fraud score: ${(fraudScore * 100).toFixed(1)}%. Analysis appears consistent with legitimate damage.`;
+            fraudAnalysis = `No significant fraud indicators detected. Fraud score: ${(calculatedFraudScore * 100).toFixed(1)}%. Analysis appears consistent with legitimate damage.`;
         }
 
         return {
@@ -169,7 +218,7 @@ async function analyzeForFraud(imageUrl) {
             riskLevel,
             fraudAnalysis: fraudAnalysis,
             detectedIssues: fraudIndicators,
-            fraudScore: (Math.floor(fraudScore * 100) / 100).toFixed(2),
+            fraudScore: (Math.floor(calculatedFraudScore * 100) / 100).toFixed(2),
         };
     } catch (error) {
         console.error(`Error in analyzeForFraud: ${error.message}`);
