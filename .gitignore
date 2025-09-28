@@ -152,3 +152,6 @@ backend/ml/checkpoints/
 backend/ml/datasets/
 __pycache__/
 venv/
+.DS_Store
+ml/.DS_Store
+ml/data/
