@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 from joblib import load
 
-MODEL_BUNDLE_PATH = os.environ.get("MODEL_BUNDLE_PATH", "service/fraud_ensemble_bundle.joblib")
-THRESHOLD = float(os.environ.get("THRESHOLD", "0.45"))
+MODEL_BUNDLE_PATH = os.environ.get("MODEL_BUNDLE_PATH", "ml/models/fraud_ensemble_bundle.joblib")
+THRESHOLD = float(0.45)
 
 # lazy-load (요청당 실행이면 큰 의미 없지만, worker 모드에서 이점)
 _bundle = load(MODEL_BUNDLE_PATH)
