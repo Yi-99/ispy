@@ -58,7 +58,7 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">iSpy</h1>
-                <p className="text-xs text-gray-500 w-3/4">AI Vehicle Damage Claim Fraud Detection</p>
+                <p className="text-xs text-gray-500 w-4/5">AI Vehicle Damage Claim Fraud Detection</p>
               </div>
             </div>
             <button
