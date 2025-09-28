@@ -111,6 +111,8 @@ async function analyzeForFraud(imageUrl) {
         const fraudIndicators = [];
         let fraudScore = 0;
         let aiScore = 0;
+        let realScore = 0;
+        let notAIScore = 0;
         let isFraudulent = false;
 
         // Check for specific fraud indicators in the classification results
@@ -120,8 +122,13 @@ async function analyzeForFraud(imageUrl) {
 
             // Look for AI-generated indicators
             if (label.includes('artificial')) {
-                fraudIndicators.push(`${label} (${((score * 100) / 100).toFixed(1)}%)`);
+                fraudIndicators.push(`AI-generated: (${(score * 100).toFixed(2)}%)`);
                 aiScore = score;
+            }
+
+            if (label.includes('real')) {
+                fraudIndicators.push(`Not AI-generated: (${(score * 100).toFixed(2)}%)`)
+                notAIScore = score;
             }
         });
 

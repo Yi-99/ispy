@@ -11,16 +11,7 @@ export interface UploadResult {
 	success: boolean;
 	url?: string;
 	error?: string;
-	fileName?: string;
-	data?: {
-		isFraudulent: boolean;
-		aiScore: string;
-		fraudScore: string;
-		aiAnalysis: string;
-		fraudAnalysis: string;
-		riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
-		detectedIssues: string[];
-	};
+	filename?: string;
 }
 
 export interface AnalysisResult {
@@ -42,15 +33,17 @@ export interface AnalysisResult {
  */
 export const uploadImage = async (file: File): Promise<UploadResult> => {
 	try {
-		// Generate unique filename with timestamp
-		const timestamp = Date.now();
+		// Generate unique filename with ISO timestamp and random component
+		const now = new Date();
+		const timestamp = now.toISOString().replace(/[:.]/g, '-');
+		const randomSuffix = Math.floor(Math.random() * 1000);
 		const fileExtension = file.name.split('.').pop();
-		const fileName = `image-${timestamp}.${fileExtension}`;
+		const filename = `image-${timestamp}-${randomSuffix}.${fileExtension}`;
 		
 		// Upload file to Supabase Storage
 		const { data, error } = await supabase.storage
 			.from(STORAGE_BUCKET)
-			.upload(`${UPLOAD_FOLDER}/${fileName}`, file, {
+			.upload(`${UPLOAD_FOLDER}/${filename}`, file, {
 				cacheControl: '3600',
 				upsert: false
 			});
@@ -66,20 +59,13 @@ export const uploadImage = async (file: File): Promise<UploadResult> => {
 		// Get public URL for the uploaded file
 		const { data: urlData } = supabase.storage
 			.from(STORAGE_BUCKET)
-			.getPublicUrl(`${UPLOAD_FOLDER}/${fileName}`);
+			.getPublicUrl(`${UPLOAD_FOLDER}/${filename}`);
 
-		const analysisResult = await analyzeImage(urlData.publicUrl);
-
-		if (analysisResult.success) {
-			return {
-				success: true,
-				url: urlData.publicUrl,
-				fileName: fileName,
-				data: analysisResult.data
-			};
-		}
-
-		throw new Error('Analysis failed');
+		return {
+			success: true,
+			url: urlData.publicUrl,
+			filename: filename
+		};
 	} catch (error) {
 		console.error('Upload error:', error);
 		return {
@@ -151,11 +137,11 @@ export const getUploadedImages = async () => {
 /**
  * Delete an uploaded image
  */
-export const deleteImage = async (fileName: string) => {
+export const deleteImage = async (filename: string) => {
 	try {
 		const { error } = await supabase.storage
 			.from(STORAGE_BUCKET)
-			.remove([fileName]);
+			.remove([filename]);
 
 		if (error) {
 			console.error('Delete error:', error);

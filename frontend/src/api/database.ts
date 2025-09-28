@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 
-export interface AnalysisMetadata {
+export interface ImageAnalysis {
   id?: string;
   filename: string;
   file_size: number;
@@ -11,12 +11,13 @@ export interface AnalysisMetadata {
   risk_level: 'LOW' | 'MEDIUM' | 'HIGH';
   ai_analysis: string;
   fraud_analysis: string;
-  detected_issues: string[];
+  detected_issues: string;
   created_at?: string;
 }
 
-export interface BatchAnalysis {
+export interface AnalysisMetadata {
   id?: string;
+  title: string;
   total_files: number;
   completed_files: number;
   fraud_detected_count: number;
@@ -31,7 +32,7 @@ export interface BatchAnalysis {
 export const saveAnalysisMetadata = async (metadata: AnalysisMetadata) => {
   try {
     const { data, error } = await supabase
-      .from('analysis_results')
+      .from('analysis_metadata')
       .insert([metadata])
       .select()
       .single();
@@ -54,10 +55,10 @@ export const saveAnalysisMetadata = async (metadata: AnalysisMetadata) => {
 /**
  * Save batch analysis summary to Supabase database
  */
-export const saveBatchAnalysis = async (batchData: BatchAnalysis) => {
+export const saveImageAnalysis = async (batchData: ImageAnalysis) => {
   try {
     const { data, error } = await supabase
-      .from('batch_analyses')
+      .from('image_metadata')
       .insert([batchData])
       .select()
       .single();
@@ -71,33 +72,62 @@ export const saveBatchAnalysis = async (batchData: BatchAnalysis) => {
   } catch (error) {
     console.error('Error saving batch analysis:', error);
     return { 
-      success: false, 
+      success: false,
       error: error instanceof Error ? error.message : 'Failed to save batch analysis' 
     };
   }
 };
 
 /**
- * Get all analysis results
+ * Fetch all analysis metadata from Supabase database
  */
-export const getAnalysisResults = async () => {
+export const fetchAnalysisMetadata = async () => {
   try {
     const { data, error } = await supabase
-      .from('analysis_results')
+      .from('analysis_metadata')
       .select('*')
       .order('created_at', { ascending: false });
 
+    console.log('analysis metadata:', data);  
+
     if (error) {
-      console.error('Error fetching analysis results:', error);
+      console.error('Error fetching analysis metadata:', error);
+      return { success: false, error: error.message }; 
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error fetching analysis metadata:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to fetch analysis metadata' 
+    };
+  }
+};
+
+/**
+ * Fetch all image analyses from Supabase database
+ */
+export const fetchImageAnalyses = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('image_metadata')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    console.log('image analyses:', data);  
+
+    if (error) {
+      console.error('Error fetching image analyses:', error);
       return { success: false, error: error.message };
     }
 
     return { success: true, data };
   } catch (error) {
-    console.error('Error fetching analysis results:', error);
+    console.error('Error fetching image analyses:', error);
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'Failed to fetch results' 
+      error: error instanceof Error ? error.message : 'Failed to fetch image analyses' 
     };
   }
 };

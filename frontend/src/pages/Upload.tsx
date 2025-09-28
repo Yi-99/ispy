@@ -12,7 +12,12 @@ import {
   faShieldAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import { uploadImage, analyzeImage, type UploadResult, type AnalysisResult } from '../api/imageUpload';
-import { saveAnalysisMetadata, saveBatchAnalysis, type AnalysisMetadata, type BatchAnalysis } from '../api/database';
+import { 
+  saveAnalysisMetadata, 
+  type AnalysisMetadata, 
+  type ImageAnalysis, 
+  saveImageAnalysis 
+} from '../api/database';
 import { useStats } from '../contexts/StatsContext';
 import ResultsDisplay from '../components/ResultsDisplay';
 
@@ -53,6 +58,7 @@ const Upload: React.FC = () => {
   });
   const [showResults, setShowResults] = useState(false);
   const [analysisCompleted, setAnalysisCompleted] = useState(false);
+  const [analysisTitle, setAnalysisTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { updateStats } = useStats();
 
@@ -88,6 +94,10 @@ const Upload: React.FC = () => {
     if (files.length > 0) {
       handleFileSelect(files);
     }
+    // Clear any file input value to allow selecting the same files again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,6 +105,8 @@ const Upload: React.FC = () => {
     if (files && files.length > 0) {
       handleFileSelect(files);
     }
+    // Clear the input value to allow selecting the same file again
+    e.target.value = '';
   };
 
   const removeFile = (id: string) => {
@@ -110,6 +122,16 @@ const Upload: React.FC = () => {
 
   const startBatchAnalysis = async () => {
     if (selectedFiles.length === 0) return;
+    
+    if (!analysisTitle.trim()) {
+      alert('Please enter a title for your analysis');
+      return;
+    }
+    
+    await performBatchAnalysis();
+  };
+
+  const performBatchAnalysis = async () => {
 
     // Initialize uploaded files from selected files
     const initialUploadedFiles: UploadedFile[] = selectedFiles.map(file => ({
@@ -126,6 +148,28 @@ const Upload: React.FC = () => {
       completedFiles: 0
     });
     setShowResults(false);
+
+    // Scroll to the progress section after state update
+    setTimeout(() => {
+      const targetDiv = document.getElementById("batch-analysis-progress");
+      if (targetDiv) {
+        targetDiv.scrollIntoView({ 
+          behavior: "smooth",  // smooth scroll
+          block: "start"       // aligns to top of viewport
+        });
+      }
+    }, 100);
+
+    // Track completed files during analysis
+    const completedAnalysisResults: Array<{
+      file: SelectedFile;
+      filename: string;
+      uploadResult: UploadResult;
+      analysisResult: AnalysisResult;
+      fraudRisk: number;
+      claimAmount: number;
+      keyIndicators: string[];
+    }> = [];
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const selectedFile = selectedFiles[i];
@@ -171,28 +215,39 @@ const Upload: React.FC = () => {
           }
 
           // Perform analysis
-          const analysisResult = await analyzeImage(uploadResult.url!);
+        const analysisResult = await analyzeImage(uploadResult.url!);
           
           if (analysisResult.success && analysisResult.data) {
             const fraudRisk = Math.round(parseFloat(analysisResult.data.aiScore) * 100);
             const claimAmount = fraudRisk > 50 ? Math.floor(Math.random() * 15000) + 1000 : 0;
             const keyIndicators = analysisResult.data.detectedIssues || [];
 
-            setUploadedFiles(prev => 
-              prev.map(f => 
+            // Store the completed analysis result
+            completedAnalysisResults.push({
+              file: selectedFile,
+              filename: uploadResult.fileName || '',
+              uploadResult,
+              analysisResult,
+              fraudRisk,
+              claimAmount,
+              keyIndicators
+            });
+        
+        setUploadedFiles(prev => 
+          prev.map(f => 
                 f.id === selectedFile.id 
-                  ? { 
-                      ...f, 
+              ? { 
+                  ...f, 
                       status: 'completed',
-                      analysis: analysisResult.data,
+                  analysis: analysisResult.data,
                       fraudRisk,
                       claimAmount,
                       keyIndicators,
                       progress: 100
-                    }
-                  : f
-              )
-            );
+                }
+              : f
+          )
+        );
 
             // Update global stats
             updateStats(analysisResult.data.isFraudulent, claimAmount);
@@ -205,24 +260,24 @@ const Upload: React.FC = () => {
               )
             );
           }
-        } else {
-          setUploadedFiles(prev => 
-            prev.map(f => 
-              f.id === selectedFile.id 
-                ? { ...f, status: 'error', error: uploadResult.error }
-                : f
-            )
-          );
-        }
-      } catch (error) {
+      } else {
         setUploadedFiles(prev => 
           prev.map(f => 
-            f.id === selectedFile.id 
-              ? { ...f, status: 'error', error: 'Upload failed' }
+              f.id === selectedFile.id 
+              ? { ...f, status: 'error', error: uploadResult.error }
               : f
           )
         );
       }
+    } catch (error) {
+      setUploadedFiles(prev => 
+        prev.map(f => 
+            f.id === selectedFile.id 
+            ? { ...f, status: 'error', error: 'Upload failed' }
+            : f
+        )
+      );
+    }
 
       setBatchState(prev => ({
         ...prev,
@@ -236,39 +291,43 @@ const Upload: React.FC = () => {
       currentFile: undefined
     }));
     
-    // Save all analysis metadata to database
-    const completedFiles = uploadedFiles.filter(f => f.status === 'completed');
-    const analysisMetadata: AnalysisMetadata[] = completedFiles.map(file => ({
-      filename: file.file.name,
-      file_size: file.file.size,
-      file_url: file.url || '',
-      fraud_score: parseFloat(file.analysis?.fraudScore || '0'),
-      ai_score: parseFloat(file.analysis?.aiScore || '0'),
-      is_fraudulent: file.analysis?.isFraudulent || false,
-      risk_level: file.analysis?.riskLevel || 'LOW',
-      ai_analysis: file.analysis?.aiAnalysis || '',
-      fraud_analysis: file.analysis?.fraudAnalysis || '',
-      detected_issues: file.keyIndicators || []
+    // Save all analysis metadata to database using tracked results
+    const imageAnalysis: ImageAnalysis[] = completedAnalysisResults.map(result => ({
+      filename: result.uploadResult.filename || '',
+      file_size: result.file.file.size,
+      file_url: result.uploadResult.url || '',
+      fraud_score: parseFloat(result.analysisResult.data?.fraudScore || '0'),
+      ai_score: parseFloat(result.analysisResult.data?.aiScore || '0'),
+      is_fraudulent: result.analysisResult.data?.isFraudulent || false,
+      risk_level: result.analysisResult.data?.riskLevel || 'LOW',
+      ai_analysis: result.analysisResult.data?.aiAnalysis || '',
+      fraud_analysis: result.analysisResult.data?.fraudAnalysis || '',
+      detected_issues: JSON.stringify(result.keyIndicators),
     }));
 
+    console.log('imageAnalysis:', imageAnalysis);
+
     // Save individual analysis results
-    for (const metadata of analysisMetadata) {
-      await saveAnalysisMetadata(metadata);
+    for (const metadata of imageAnalysis) {
+      await saveImageAnalysis(metadata);
     }
 
     // Save batch analysis summary
-    const fraudDetectedCount = completedFiles.filter(f => f.analysis?.isFraudulent).length;
-    const totalClaimAmount = completedFiles.reduce((sum, f) => sum + (f.claimAmount || 0), 0);
+    const fraudDetectedCount = completedAnalysisResults.filter(result => result.analysisResult.data?.isFraudulent).length;
+    const totalClaimAmount = completedAnalysisResults.reduce((sum, result) => sum + result.claimAmount, 0);
     
-    const batchData: BatchAnalysis = {
-      total_files: completedFiles.length,
-      completed_files: completedFiles.length,
+    const analysisMetadata: AnalysisMetadata = {
+      title: analysisTitle,
+      total_files: selectedFiles.length, // Use the original number of selected files
+      completed_files: completedAnalysisResults.length, // Use the actual number of completed files
       fraud_detected_count: fraudDetectedCount,
       total_claim_amount: totalClaimAmount,
-      file_urls: []
+      file_urls: completedAnalysisResults.map(result => result.uploadResult.url || '') // Include the actual file URLs
     };
+
+    console.log('analysisMetadata:', analysisMetadata);
     
-    await saveBatchAnalysis(batchData);
+    await saveAnalysisMetadata(analysisMetadata);
     
     setAnalysisCompleted(true);
     setShowResults(true);
@@ -279,6 +338,7 @@ const Upload: React.FC = () => {
     setUploadedFiles([]);
     setShowResults(false);
     setAnalysisCompleted(false);
+    setAnalysisTitle('');
     setBatchState({
       isAnalyzing: false,
       totalFiles: 0,
@@ -289,7 +349,7 @@ const Upload: React.FC = () => {
 
   return (
     <div className="p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-full mx-auto">
         {/* Header Section */}
         <div className="mb-8">
           <div className="flex items-center mb-4">
@@ -301,9 +361,9 @@ const Upload: React.FC = () => {
             </button>
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">AI Fraud Detection</h1>
-              <p className="text-gray-600">
+          <p className="text-gray-600">
                 Upload vehicle damage images for intelligent fraud analysis.
-              </p>
+          </p>
             </div>
           </div>
         </div>
@@ -313,21 +373,21 @@ const Upload: React.FC = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
             {!analysisCompleted && <div className="flex items-center mb-6">
               <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-2xl text-blue-600 mr-3" />
-              <h2 className="text-2xl font-semibold text-gray-900">Upload Vehicle Damage Images</h2>
+              <h2 className="text-2xl font-semibold text-gray-900">Upload Images</h2>
             </div>}
             
             {!analysisCompleted && selectedFiles.length === 0 ? (
-              <div 
-                className={`border-2 border-dashed rounded-lg p-12 transition-colors duration-200 cursor-pointer ${
-                  isDragOver 
-                    ? 'border-blue-400 bg-blue-50' 
-                    : 'border-gray-300 hover:border-blue-400'
-                }`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-              >
+            <div 
+              className={`border-2 border-dashed rounded-lg p-12 transition-colors duration-200 cursor-pointer ${
+                isDragOver 
+                  ? 'border-blue-400 bg-blue-50' 
+                  : 'border-gray-300 hover:border-blue-400'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
                 <div className="text-center">
                   <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-6">
                     <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-3xl text-blue-600" />
@@ -352,10 +412,10 @@ const Upload: React.FC = () => {
                 </p>
                 
                 {/* Image Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
                   {selectedFiles.map((file) => (
-                    <div key={file.id} className="relative bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <div className="aspect-square bg-gray-200 rounded-lg mb-3 overflow-hidden">
+                    <div key={file.id} className="relative bg-gray-50 rounded-lg p-2 border border-gray-200">
+                      <div className="aspect-square bg-gray-200 rounded-lg mb-2 overflow-hidden">
                         {file.preview ? (
                           <img 
                             src={file.preview} 
@@ -364,11 +424,11 @@ const Upload: React.FC = () => {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <FontAwesomeIcon icon={faFileImage} className="text-2xl text-gray-400" />
+                            <FontAwesomeIcon icon={faFileImage} className="text-lg text-gray-400" />
                           </div>
                         )}
                       </div>
-                      <p className="text-sm font-medium text-gray-900 truncate" title={file.file.name}>
+                      <p className="text-xs font-medium text-gray-900 truncate" title={file.file.name}>
                         {file.file.name}
                       </p>
                       <p className="text-xs text-gray-500">
@@ -376,7 +436,7 @@ const Upload: React.FC = () => {
                       </p>
                       <button
                         onClick={() => removeFile(file.id)}
-                        className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
                       >
                         ×
                       </button>
@@ -385,11 +445,11 @@ const Upload: React.FC = () => {
                   
                   {/* Add More Button */}
                   <div 
-                    className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                    className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors p-2"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-2xl text-gray-400 mb-2" />
-                    <span className="text-sm text-gray-500">Add More</span>
+                    <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-lg text-gray-400 mb-1" />
+                    <span className="text-xs text-gray-500">Add More</span>
                   </div>
                 </div>
                 
@@ -397,6 +457,21 @@ const Upload: React.FC = () => {
                   <p className="text-gray-600">
                     {selectedFiles.length} files selected for batch analysis
                   </p>
+                </div>
+                
+                {/* Analysis Title Input */}
+                <div className="mb-6">
+                  <label htmlFor="analysisTitle" className="block text-sm font-medium text-gray-700 mb-2">
+                    Analysis Title
+                  </label>
+                  <input
+                    id="analysisTitle"
+                    type="text"
+                    value={analysisTitle}
+                    onChange={(e) => setAnalysisTitle(e.target.value)}
+                    placeholder="e.g., Vehicle Damage Assessment - Jan 2024"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
                 </div>
                 
                 <div className="text-center">
@@ -442,20 +517,20 @@ const Upload: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-        
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept="image/*"
-          onChange={handleFileInputChange}
-          className="hidden"
-        />
+            </div>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={handleFileInputChange}
+              className="hidden"
+            />
 
         {/* Batch Analysis Progress */}
         {batchState.isAnalyzing && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8 h-full">
+          <div id="batch-analysis-progress" className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8 h-full">
             <div className="flex items-center mb-6">
               <FontAwesomeIcon icon={faShieldAlt} className="text-2xl text-blue-600 mr-3" />
               <h2 className="text-2xl font-semibold text-gray-900">Batch Analysis Progress</h2>
@@ -465,15 +540,15 @@ const Upload: React.FC = () => {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-600">Processing {batchState.totalFiles} images</span>
                 <span className="text-sm text-green-600 font-medium">{batchState.completedFiles} completed</span>
-              </div>
+          </div>
               
               <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
                 <div 
                   className="bg-blue-600 h-3 rounded-full transition-all duration-300"
                   style={{ width: `${(batchState.completedFiles / batchState.totalFiles) * 100}%` }}
                 ></div>
-              </div>
-              
+        </div>
+
               <div className="flex justify-between text-sm text-gray-600">
                 <span className="font-medium">Overall Progress</span>
                 <span>{Math.round((batchState.completedFiles / batchState.totalFiles) * 100)}%</span>
@@ -493,7 +568,7 @@ const Upload: React.FC = () => {
                           <FontAwesomeIcon icon={faFileImage} className="text-gray-400" />
                         </div>
                       )}
-                    </div>
+                      </div>
                     
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{file.file.name}</p>
@@ -549,7 +624,6 @@ const Upload: React.FC = () => {
             files={uploadedFiles}
           />
         )}
-
       </div>
     </div>
   );

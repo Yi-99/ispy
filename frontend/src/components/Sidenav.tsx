@@ -1,7 +1,7 @@
 import React from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faTachometerAlt, 
+  faGrip,
   faUpload, 
   faFileAlt, 
   faShieldAlt, 
@@ -20,7 +20,7 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
   const { casesAnalyzed, fraudDetected, moneySaved } = useStats();
 
   const navigationItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: faTachometerAlt },
+    { id: 'dashboard', label: 'Dashboard', icon: faGrip },
     { id: 'upload', label: 'Upload & Analyze', icon: faUpload },
     { id: 'cases', label: 'Case Review', icon: faFileAlt },
   ];
@@ -56,8 +56,8 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
                 <FontAwesomeIcon icon={faShieldAlt} className="text-white text-lg" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">iSpy</h1>
-                <p className="text-sm text-gray-500">AI Fraud Detection</p>
+                <h1 className="text-2xl font-bold text-gray-900">iSpy</h1>
+                <p className="text-xs text-gray-500 w-3/4">AI Vehicle Damage Claim Fraud Detection</p>
               </div>
             </div>
             <button
@@ -112,7 +112,7 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
                       </div>
                       <div className="flex items-center space-x-1">
                         <span className="text-xs text-green-600 font-medium">{stat.trend !== '0' || stat.trend.includes('0') ? stat.trend : '-'}</span>
-                        <FontAwesomeIcon icon={faTachometerAlt} className="text-green-500 text-xs" />
+                        <FontAwesomeIcon icon={faGrip} className="text-green-500 text-xs" />
                       </div>
                     </div>
                   </div>

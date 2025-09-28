@@ -109,10 +109,9 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files }) => {
                 <span className="text-sm font-medium text-gray-700 uppercase">KEY INDICATORS</span>
                 <div className="mt-1">
                   {file.keyIndicators && file.keyIndicators.length > 0 ? (
-                    <ul className="text-sm text-gray-900 space-y-1">
+                    <ul className="text-sm font-bold text-gray-900 space-y-1 list-none">
                       {file.keyIndicators.slice(0, 3).map((indicator, index) => (
-                        <li key={index} className="flex items-start space-x-2">
-                          <span className="text-red-500 mt-1 text-xs">•</span>
+                        <li key={index} className="flex items-center space-x-2">
                           <span className="text-xs">{indicator}</span>
                         </li>
                       ))}
