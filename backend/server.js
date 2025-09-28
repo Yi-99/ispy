@@ -1,6 +1,6 @@
 const dotenv = require('dotenv');
 
-require('dotenv').config({ path: '.env' });
+require('dotenv').config({ path: '.env.local' });
 
 const express = require('express');
 const multer = require('multer');

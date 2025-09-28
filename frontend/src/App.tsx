@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
 import Sidenav from './components/Sidenav';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
@@ -10,6 +11,7 @@ import { StatsProvider } from './contexts/StatsContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBars } from '@fortawesome/free-solid-svg-icons';
 import './App.css';
+import 'react-toastify/dist/ReactToastify.css';
 
 const AppLayout: React.FC = () => {
   const [sidenavOpen, setSidenavOpen] = useState(false);
@@ -59,6 +61,21 @@ const AppLayout: React.FC = () => {
           </Routes>
         </main>
       </div>
+      
+      {/* Toast Container */}
+      <ToastContainer
+        position="bottom-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+        toastClassName="!text-sm" // Make toast text smaller
+      />
     </div>
   );
 };

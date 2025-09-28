@@ -65,28 +65,58 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files, actionButton }) 
                 </div>
               </div>
               
+              {/* AI Gen Risk Section */}
+              <div className="flex-1">
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700 uppercase">AI GEN RISK</span>
+                    <span className="text-3xl font-bold text-gray-900">
+                      {file.analysis?.aiScore ? Math.round(parseFloat(file.analysis.aiScore) * 100) : 0}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                    <div 
+                      className={`h-2 rounded-full ${
+                        (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 70 ? 'bg-red-500' : 
+                        (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 50 ? 'bg-yellow-500' : 'bg-green-500'
+                      }`}
+                      style={{ width: `${file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0}%` }}
+                    ></div>
+                  </div>
+                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                    (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 70 ? 'bg-red-100 text-red-800' : 
+                    (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                  }`}>
+                    {(file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 70 ? 'High Risk' : 
+                      (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 50 ? 'Medium Risk' : 'Low Risk'}
+                  </span>
+                </div>
+              </div>
+              
               {/* Fraud Risk Section */}
               <div className="flex-1">
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-700 uppercase">FRAUD RISK</span>
-                    <span className="text-3xl font-bold text-gray-900">{file.fraudRisk || 0}%</span>
+                    <span className="text-3xl font-bold text-gray-900">
+                      {file.analysis?.fraudScore ? Math.round(parseFloat(file.analysis.fraudScore) * 100) : 0}%
+                    </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                     <div 
                       className={`h-2 rounded-full ${
-                        (file.fraudRisk || 0) > 70 ? 'bg-red-500' : 
-                        (file.fraudRisk || 0) > 50 ? 'bg-yellow-500' : 'bg-green-500'
+                        (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 70 ? 'bg-red-500' : 
+                        (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 50 ? 'bg-yellow-500' : 'bg-green-500'
                       }`}
-                      style={{ width: `${file.fraudRisk || 0}%` }}
+                      style={{ width: `${file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0}%` }}
                     ></div>
                   </div>
                   <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                    (file.fraudRisk || 0) > 70 ? 'bg-red-100 text-red-800' : 
-                    (file.fraudRisk || 0) > 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                    (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 70 ? 'bg-red-100 text-red-800' : 
+                    (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
                   }`}>
-                    {(file.fraudRisk || 0) > 70 ? 'Fraudulent' : 
-                      (file.fraudRisk || 0) > 50 ? 'Suspicious' : 'Genuine'}
+                    {(file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 70 ? 'Fraudulent' : 
+                      (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 50 ? 'Suspicious' : 'Genuine'}
                   </span>
                 </div>
               </div>
@@ -105,25 +135,25 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files, actionButton }) 
                 </div>
               </div>
               
-              {/* Key Indicators Section */}
+              {/* Detected Issues Section */}
               <div className="flex-1">
-                <span className="text-sm font-medium text-gray-700 uppercase">KEY INDICATORS</span>
+                <span className="text-sm font-medium text-gray-700 uppercase">DETECTED ISSUES</span>
                 <div className="mt-1">
-                  {file.keyIndicators && file.keyIndicators.length > 0 ? (
+                  {file.analysis?.detectedIssues && file.analysis.detectedIssues.length > 0 ? (
                     <ul className="text-sm font-bold text-gray-900 space-y-1 list-none">
-                      {file.keyIndicators.slice(0, 3).map((indicator, index) => (
+                      {file.analysis.detectedIssues.slice(0, 3).map((issue, index) => (
                         <li key={index} className="flex items-center space-x-2">
-                          <span className="text-xs">{indicator}</span>
+                          <span className="text-xs">{issue}</span>
                         </li>
                       ))}
-                      {file.keyIndicators.length > 3 && (
-                        <li className="text-xs text-gray-500">+{file.keyIndicators.length - 3} more...</li>
+                      {file.analysis.detectedIssues.length > 3 && (
+                        <li className="text-xs text-gray-500">+{file.analysis.detectedIssues.length - 3} more...</li>
                       )}
                     </ul>
                   ) : (
                     <div className="flex items-center space-x-2">
                       <FontAwesomeIcon icon={faCheckCircle} className="text-green-500 text-sm" />
-                      <span className="text-sm text-gray-900">No major issues found</span>
+                      <span className="text-sm text-gray-900">No issues detected</span>
                     </div>
                   )}
                 </div>

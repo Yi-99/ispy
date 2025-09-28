@@ -221,7 +221,6 @@ const Dashboard: React.FC = () => {
 		{
 			title: 'Total Cases Analyzed',
 			value: casesAnalyzed.toString(),
-			change: '+12% this month',
 			changeType: 'positive',
 			icon: faFileAlt,
 			iconColor: 'text-blue-600',
@@ -230,7 +229,6 @@ const Dashboard: React.FC = () => {
 		{
 			title: 'Fraudulent Cases Detected',
 			value: fraudDetected.toString(),
-			change: `${fraudRate}% detection rate`,
 			changeType: 'positive',
 			icon: faExclamationTriangle,
 			iconColor: 'text-red-600',
@@ -239,7 +237,6 @@ const Dashboard: React.FC = () => {
 		{
 			title: 'Money Saved',
 			value: `$${moneySaved.toLocaleString()}`,
-			change: '+$50K this month',
 			changeType: 'positive',
 			icon: faDollarSign,
 			iconColor: 'text-green-600',
