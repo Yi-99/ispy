@@ -111,6 +111,7 @@ const Upload: React.FC = () => {
   const [names, setNames] = useState<string[]>([]);
   const [batch, setBatch] = useState<BatchState>({ isAnalyzing: false, totalFiles: 0, completedFiles: 0 });
   const [dragOver, setDragOver] = useState(false);
+  const [comprehensiveResult, setComprehensiveResult] = useState<any>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -221,9 +222,13 @@ const Upload: React.FC = () => {
     // Process sequentially (simple UI)
     const resultsForDB: ImageAnalysis[] = [];
     let fraudDetectedCount = 0;  // count both images+pdf
-    let totalCost = 0;           // image fraud “cost” (demo) + pdf ClaimAmount for frauds
+    let totalCost = 0;           // image fraud "cost" (demo) + pdf ClaimAmount for frauds
     let totalClaimAmount = 0;    // pdf sum of claim amounts (for info)
     let completed = 0;
+    
+    // 통합 분석을 위한 데이터 수집
+    const completedImageAnalysis: any[] = [];
+    const completedDocumentAnalysis: any[] = [];
 
     for (const s of selected) {
       setBatch((b) => ({ ...b, currentFile: s.file.name }));
@@ -293,6 +298,12 @@ const Upload: React.FC = () => {
             totalCost += row.cost || 0;
           }
           updateStats(row.is_fraudulent, row.is_fraudulent ? (row.cost || 0) : 0);
+          
+          // 통합 분석을 위한 데이터 수집
+          completedImageAnalysis.push({
+            analysis: ar.data,
+            fraudRisk: fraudRisk
+          });
         } catch (err: any) {
           setItems((prev) =>
             prev.map((it) => (it.id === s.id ? { ...it, status: 'error', error: err?.message || 'Image analysis failed' } : it))
@@ -348,9 +359,15 @@ const Upload: React.FC = () => {
           totalClaimAmount += claimAmt;
           if (isFraud) {
             fraudDetectedCount += 1;
-            totalCost += claimAmt; // treat PDF fraud “savings” = claim amount
+            totalCost += claimAmt; // treat PDF fraud "savings" = claim amount
           }
           updateStats(isFraud, isFraud ? claimAmt : 0);
+          
+          // 통합 분석을 위한 데이터 수집
+          completedDocumentAnalysis.push({
+            extractedData: parsed.canonical,
+            fraudPrediction: first
+          });
         } catch (err: any) {
           setItems((prev) =>
             prev.map((it) => (it.id === s.id ? { ...it, status: 'error', error: err?.message || 'Document analysis failed' } : it))
@@ -378,6 +395,44 @@ const Upload: React.FC = () => {
       file_urls: resultsForDB.map((r) => r.file_url).filter(Boolean),
     };
     await updateAnalysisMetadata(meta);
+
+    // 통합 분석 요청
+    console.log('🔍 Starting comprehensive analysis...');
+    console.log('📸 Completed image analysis:', completedImageAnalysis);
+    console.log('📄 Completed document analysis:', completedDocumentAnalysis);
+    
+    try {
+      if (completedImageAnalysis.length > 0 || completedDocumentAnalysis.length > 0) {
+        console.log('🚀 Sending comprehensive analysis request...');
+        
+        const comprehensiveResponse = await fetch('http://localhost:8000/api/analyze-comprehensive', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            imageAnalysis: completedImageAnalysis,
+            documentAnalysis: completedDocumentAnalysis
+          })
+        });
+
+        console.log('📡 Response status:', comprehensiveResponse.status);
+        console.log('📡 Response ok:', comprehensiveResponse.ok);
+
+        if (comprehensiveResponse.ok) {
+          const comprehensiveResult = await comprehensiveResponse.json();
+          console.log('✅ Comprehensive analysis result:', comprehensiveResult);
+          setComprehensiveResult(comprehensiveResult.data);
+        } else {
+          const errorText = await comprehensiveResponse.text();
+          console.error('❌ Comprehensive analysis failed:', comprehensiveResponse.status, errorText);
+        }
+      } else {
+        console.log('⚠️ No completed analysis data found for comprehensive analysis');
+      }
+    } catch (error) {
+      console.error('❌ Comprehensive analysis error:', error);
+    }
 
     // refresh global stats
     refreshStats();
@@ -662,6 +717,115 @@ const Upload: React.FC = () => {
                     }
                   })}
               </div>
+
+              {/* Comprehensive Analysis Results */}
+              {comprehensiveResult && (
+                <div className="mt-8 border border-gray-200 rounded-lg p-6 bg-gradient-to-r from-blue-50 to-purple-50">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <FontAwesomeIcon icon={faShieldAlt} className="text-2xl text-blue-600" />
+                      <h4 className="text-xl font-bold text-gray-900">Comprehensive Fraud Risk Analysis</h4>
+                    </div>
+                    {comprehensiveResult.aggregateRisk && (
+                      <span className={`text-sm px-4 py-2 rounded-full font-semibold ${riskBadgeClass(comprehensiveResult.aggregateRisk.level)}`}>
+                        {comprehensiveResult.aggregateRisk.level} RISK
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Overall Risk Score Card */}
+                  {comprehensiveResult.aggregateRisk && (
+                    <div className="bg-white rounded-lg p-4 mb-4 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <FontAwesomeIcon icon={faShieldAlt} className="text-blue-500" />
+                          <span className="font-semibold text-gray-800">Overall Risk Score</span>
+                        </div>
+                        <div className="text-2xl font-bold text-gray-900">
+                          {(comprehensiveResult.aggregateRisk.overall * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                      <div className="mt-2 w-full bg-gray-200 rounded-full h-3">
+                        <div 
+                          className={`h-3 rounded-full transition-all duration-500 ${
+                            comprehensiveResult.aggregateRisk.level === 'HIGH' ? 'bg-red-500' : 
+                            comprehensiveResult.aggregateRisk.level === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${comprehensiveResult.aggregateRisk.overall * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI Analysis Results */}
+                  {comprehensiveResult.aiAnalysis ? (
+                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                      <h5 className="font-semibold text-gray-800 mb-3 flex items-center">
+                        <FontAwesomeIcon icon={faShieldAlt} className="text-green-600 mr-2" />
+                        AI Comprehensive Analysis Report
+                      </h5>
+                      
+                      {/* Key Findings */}
+                      {comprehensiveResult.aiAnalysis.key_findings && (
+                        <div className="mb-4">
+                          <h6 className="font-medium text-gray-700 mb-2">🔍 Key Findings</h6>
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <p className="text-sm text-gray-800">{comprehensiveResult.aiAnalysis.key_findings}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Risk Factors */}
+                      {comprehensiveResult.aiAnalysis.risk_factors && comprehensiveResult.aiAnalysis.risk_factors.length > 0 && (
+                        <div className="mb-4">
+                          <h6 className="font-medium text-gray-700 mb-2">⚠️ Risk Factors</h6>
+                          <ul className="space-y-1">
+                            {comprehensiveResult.aiAnalysis.risk_factors.map((factor: string, index: number) => (
+                              <li key={index} className="text-sm text-gray-700 flex items-start">
+                                <span className="text-red-500 mr-2">•</span>
+                                {factor}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Recommendations */}
+                      {comprehensiveResult.aiAnalysis.recommendations && comprehensiveResult.aiAnalysis.recommendations.length > 0 && (
+                        <div className="mb-4">
+                          <h6 className="font-medium text-gray-700 mb-2">💡 Recommendations</h6>
+                          <ul className="space-y-1">
+                            {comprehensiveResult.aiAnalysis.recommendations.map((rec: string, index: number) => (
+                              <li key={index} className="text-sm text-gray-700 flex items-start">
+                                <span className="text-blue-500 mr-2">•</span>
+                                {rec}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Detailed Analysis */}
+                      {comprehensiveResult.aiAnalysis.detailed_analysis && (
+                        <div className="mb-4">
+                          <h6 className="font-medium text-gray-700 mb-2">📊 Detailed Analysis</h6>
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                            <p className="text-sm text-gray-800">{comprehensiveResult.aiAnalysis.detailed_analysis}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start">
+                      <FontAwesomeIcon icon={faExclamationTriangle} className="text-amber-600 mr-3 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-800">Unable to generate AI analysis results.</p>
+                        <p className="text-xs text-amber-700 mt-1">Google API key is not configured or network error occurred.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="mt-6 text-center">
                 <button

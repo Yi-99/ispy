@@ -9,6 +9,7 @@ const fs = require('fs');
 
 const { detectImage, detectImageFromUrl, analyzeForFraud } = require('./service/aiImageDetect');
 const { parseClaimPdf } = require('./service/documentScan');
+const { aggregateRisk, analyzeRisk } = require('./service/aggregateRisk');
 const { spawn } = require('child_process');
 
 const app = express();
@@ -61,6 +62,132 @@ app.use((req, res, next) => {
 
 // Document scan routes
 app.post('/api/parse-claim-pdf', parseClaimPdf);
+
+// 통합 분석 엔드포인트
+app.post('/api/analyze-comprehensive', async (req, res) => {
+  try {
+    const { 
+      imageAnalysis = [], 
+      documentAnalysis = [],
+      weights = { wDoc: 0.2, wImg: 0.2, wGen: 0.6, thrLow: 0.2, thrHigh: 0.4 }
+    } = req.body;
+
+    if (!imageAnalysis.length && !documentAnalysis.length) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No analysis data provided' 
+      });
+    }
+
+    // aggregateRisk 입력 데이터 준비
+    const docProbas = documentAnalysis.map(doc => doc.fraudPrediction?.proba || 0);
+    const imgProbas = imageAnalysis.map(img => img.analysis?.fraudScore || 0);
+    const imgUncerts = imageAnalysis.map(img => img.analysis?.uncertainty || 0);
+    const aiScores = imageAnalysis.map(img => img.analysis?.aiScore || 0);
+
+    const imgProb = imgProbas.length ? Math.max(...imgProbas) : 0;
+    const imgUnc = imgUncerts.length ? Math.min(1, Math.max(0, imgUncerts.reduce((a, b) => a + b, 0) / imgUncerts.length)) : 0;
+    const aiScore = aiScores.length ? Math.max(...aiScores) : 0;
+
+    // aggregateRisk 계산
+    const aggResult = aggregateRisk(
+      { docProbas, imgProb, imgUnc, aiScore },
+      weights
+    );
+
+    // analyzeRisk 페이로드 구성
+    const docItemsForSignal = documentAnalysis.map(doc => ({
+      proba: doc.fraudPrediction?.proba || 0,
+      decision: doc.fraudPrediction?.decision || 0
+    }));
+
+    let topIdx = -1;
+    let topVal = -1;
+    docProbas.forEach((v, i) => {
+      if (v > topVal) {
+        topVal = v;
+        topIdx = i;
+      }
+    });
+
+    const payload = {
+      overall: { 
+        score: aggResult.overall, 
+        level: aggResult.level, 
+        thresholds: aggResult.thresholds 
+      },
+      signals: {
+        document: {
+          type: 'tabular_fraud',
+          items: docItemsForSignal,
+          top_suspicious: topIdx >= 0 ? { index: topIdx, proba: topVal } : null,
+          model: 'fraud_rf_v1',
+        },
+        image_fraud: {
+          type: 'visual_fraud',
+          proba: imgProbas.length ? imgProb : null,
+          risk: imgProb >= 0.7 ? 'High' : imgProb >= 0.4 ? 'Medium' : (imgProb > 0 ? 'Low' : null),
+          uncertainty: imgUncerts.length ? imgUnc : null,
+          model: imgProbas.length ? 'img_model_v1' : null,
+        },
+        ai_generated: {
+          type: 'gen_detector',
+          score: aiScores.length ? aiScore : null,
+          risk: aiScore >= 0.7 ? 'High' : aiScore >= 0.4 ? 'Medium' : (aiScores.length ? 'Low' : null),
+        },
+      },
+      consistency: {
+        media_consistency: (docProbas.length && imgProbas.length)
+          ? ((imgProb >= 0.7) === ((Math.max(0, ...docProbas)) >= 0.7) ? 'consistent' : 'inconsistent')
+          : 'unknown',
+        notes: [],
+      },
+    };
+
+    // Gemini AI 분석 (getGenAI 함수 필요)
+    let aiAnalysis = null;
+    try {
+      // GoogleGenerativeAI 동적 import
+      const { GoogleGenerativeAI } = await import('@google/generative-ai');
+      
+      // getGenAI 함수 생성
+      const getGenAI = async () => {
+        if (!process.env.GOOGLE_API_KEY) {
+          throw new Error('GOOGLE_API_KEY not found');
+        }
+        return new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+      };
+      
+      aiAnalysis = await analyzeRisk(payload, getGenAI);
+    } catch (error) {
+      console.warn('Gemini AI analysis failed:', error.message);
+      // AI 분석 실패해도 aggregateRisk 결과는 반환
+    }
+
+    res.json({
+      success: true,
+      data: {
+        aggregateRisk: aggResult,
+        aiAnalysis: aiAnalysis,
+        payload: payload,
+        summary: {
+          totalFiles: imageAnalysis.length + documentAnalysis.length,
+          imageCount: imageAnalysis.length,
+          documentCount: documentAnalysis.length,
+          overallRisk: aggResult.level,
+          overallScore: aggResult.overall
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in comprehensive analysis:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -178,7 +305,8 @@ app.get('/', (req, res) => {
       'POST /analyze_fraud': 'Analyze image URL for fraud detection',
       'POST /upload_and_analyze': 'Upload image file and analyze for fraud',
       'POST /api/parse-claim-pdf': 'Parse insurance claim PDF and extract structured data',
-      'POST /predict': 'Predict fraud probability using ML model'
+      'POST /predict': 'Predict fraud probability using ML model',
+      'POST /api/analyze-comprehensive': 'Comprehensive analysis combining images and documents with AI summary'
     }
   });
 });

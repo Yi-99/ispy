@@ -3,7 +3,7 @@
 
 function aggregateRisk(
     { docProbas = [], imgProb, imgUnc, aiScore },
-    { wDoc = 0.5, wImg = 0.3, wGen = 0.2, thrLow = 0.3, thrHigh = 0.6 } = {}
+    { wDoc = 0.3, wImg = 0.1, wGen = 0.6, thrLow = 0.3, thrHigh = 0.6 } = {}
   ) {
     // Handle both single value and array for docProbas
     const docProbasArray = Array.isArray(docProbas) ? docProbas : [docProbas];
