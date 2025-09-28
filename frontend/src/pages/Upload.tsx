@@ -225,7 +225,7 @@ const Upload: React.FC = () => {
             // Store the completed analysis result
             completedAnalysisResults.push({
               file: selectedFile,
-              filename: uploadResult.fileName || '',
+              filename: uploadResult.filename || '',
               uploadResult,
               analysisResult,
               fraudRisk,
