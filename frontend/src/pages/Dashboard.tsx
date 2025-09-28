@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
 	Chart as ChartJS,
@@ -27,36 +27,195 @@ import {
 	faDollarSign, 
 	faShieldAlt, 
 	faChartLine,
-	faArrowUp
+	faArrowUp,
+	faTimes
 } from '@fortawesome/free-solid-svg-icons';
 import { useStats } from '../contexts/StatsContext';
+import { fetchAnalysisMetadata, type AnalysisMetadata } from '../api/database';
 
 const Dashboard: React.FC = () => {
 	const { casesAnalyzed, fraudDetected, moneySaved } = useStats();
-	// const fraudRate = casesAnalyzed > 0 ? ((fraudDetected / casesAnalyzed) * 100).toFixed(1) : '0.0';
+	const [chartData, setChartData] = useState<any>(null);
+	const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
 	
-	// Chart.js data
-	const week1Cases = Math.max(1, casesAnalyzed - 3);
-	const week2Cases = Math.max(1, casesAnalyzed - 2);
-	const week3Cases = Math.max(1, casesAnalyzed - 1);
-	const week4Cases = casesAnalyzed;
-	
-	const week1Fraud = Math.max(0, fraudDetected - 1);
-	const week2Fraud = Math.max(0, fraudDetected - 1);
-	const week3Fraud = fraudDetected;
-	const week4Fraud = fraudDetected;
-	
-	const week1Money = Math.max(100, moneySaved - 5000);
-	const week2Money = Math.max(200, moneySaved - 3000);
-	const week3Money = Math.max(500, moneySaved - 1000);
-	const week4Money = moneySaved;
+	// Fetch analysis data on component mount
+	useEffect(() => {
+		const loadAnalysisData = async () => {
+			const result = await fetchAnalysisMetadata();
+			if (result.success && result.data) {
+				processChartData(result.data);
+			}
+		};
+		loadAnalysisData();
+	}, []);
 
-	const chartData = {
-		labels: ['Week 1', 'Week 2', 'Week 3', 'This Week'],
-		datasets: [
+	// Process analysis data into chart format
+	const processChartData = (data: AnalysisMetadata[]) => {
+		if (data.length === 0) {
+			// Fallback to mock data if no real data
+			const mockData = {
+				labels: ['Week 1', 'Week 2', 'Week 3', 'This Week'],
+				datasets: [
+					{
+						label: 'Cases Analyzed',
+						data: [Math.max(1, casesAnalyzed - 3), Math.max(1, casesAnalyzed - 2), Math.max(1, casesAnalyzed - 1), casesAnalyzed],
+						borderColor: '#3B82F6',
+						backgroundColor: 'rgba(59, 130, 246, 0.1)',
+						borderWidth: 3,
+						pointBackgroundColor: '#3B82F6',
+						pointBorderColor: '#ffffff',
+						pointBorderWidth: 2,
+						pointRadius: 6,
+						pointHoverRadius: 8,
+						tension: 0.3,
+					},
+					{
+						label: 'Fraud Detected',
+						data: [Math.max(0, fraudDetected - 1), Math.max(0, fraudDetected - 1), fraudDetected, fraudDetected],
+						borderColor: '#EF4444',
+						backgroundColor: 'rgba(239, 68, 68, 0.1)',
+						borderWidth: 3,
+						pointBackgroundColor: '#EF4444',
+						pointBorderColor: '#ffffff',
+						pointBorderWidth: 2,
+						pointRadius: 6,
+						pointHoverRadius: 8,
+						tension: 0.3,
+					}
+				]
+			};
+			setChartData(mockData);
+			return;
+		}
+
+		// Sort data by created_at timestamp (oldest to newest)
+		const sortedData = [...data].sort((a, b) => 
+			new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+		);
+
+		// Create time periods (at least 4 points)
+		const timePoints = createTimePoints(sortedData);
+		
+		// Process data for each time period
+		const processedData = timePoints.map(period => {
+			const periodData = sortedData.filter(item => {
+				const itemDate = new Date(item.created_at || 0);
+				return itemDate >= period.start && itemDate <= period.end;
+			});
+
+			return {
+				label: period.label,
+				casesAnalyzed: periodData.reduce((sum, item) => sum + item.total_files, 0),
+				fraudDetected: periodData.reduce((sum, item) => sum + item.fraud_detected_count, 0),
+				moneySaved: periodData.reduce((sum, item) => sum + item.total_cost, 0)
+			};
+		});
+
+		const chartData = {
+			labels: processedData.map(d => d.label),
+			datasets: [
+				{
+					label: 'Cases Analyzed',
+					data: processedData.map(d => d.casesAnalyzed),
+					borderColor: '#3B82F6',
+					backgroundColor: 'rgba(59, 130, 246, 0.1)',
+					borderWidth: 3,
+					pointBackgroundColor: '#3B82F6',
+					pointBorderColor: '#ffffff',
+					pointBorderWidth: 2,
+					pointRadius: 6,
+					pointHoverRadius: 8,
+					tension: 0.3,
+					yAxisID: 'y',
+				},
+				{
+					label: 'Fraud Detected',
+					data: processedData.map(d => d.fraudDetected),
+					borderColor: '#EF4444',
+					backgroundColor: 'rgba(239, 68, 68, 0.1)',
+					borderWidth: 3,
+					pointBackgroundColor: '#EF4444',
+					pointBorderColor: '#ffffff',
+					pointBorderWidth: 2,
+					pointRadius: 6,
+					pointHoverRadius: 8,
+					tension: 0.3,
+					yAxisID: 'y',
+				},
+				{
+					label: 'Money Saved ($)',
+					data: processedData.map(d => d.moneySaved),
+					borderColor: '#10B981',
+					backgroundColor: 'rgba(16, 185, 129, 0.1)',
+					borderWidth: 3,
+					pointBackgroundColor: '#10B981',
+					pointBorderColor: '#ffffff',
+					pointBorderWidth: 2,
+					pointRadius: 6,
+					pointHoverRadius: 8,
+					tension: 0.3,
+					yAxisID: 'y1',
+				}
+			]
+		};
+
+		setChartData(chartData);
+	};
+
+	// Create time points from data
+	const createTimePoints = (data: AnalysisMetadata[]) => {
+		if (data.length === 0) return [];
+
+		const oldestDate = new Date(data[0].created_at || 0);
+		const newestDate = new Date(data[data.length - 1].created_at || 0);
+		const totalDays = Math.ceil((newestDate.getTime() - oldestDate.getTime()) / (1000 * 60 * 60 * 24));
+		
+		// Create 2-4 time periods (fewer labels)
+		const periods = Math.max(2, Math.min(4, data.length));
+		const daysPerPeriod = Math.ceil(totalDays / periods);
+		
+		const timePoints = [];
+		for (let i = 0; i < periods; i++) {
+			const startDate = new Date(oldestDate.getTime() + (i * daysPerPeriod * 24 * 60 * 60 * 1000));
+			const endDate = new Date(Math.min(
+				startDate.getTime() + (daysPerPeriod * 24 * 60 * 60 * 1000),
+				newestDate.getTime()
+			));
+			
+			// Use actual timestamps for labels
+			let label;
+			if (periods === 2) {
+				// For 2 periods, show start and end dates
+				label = i === 0 ? startDate.toLocaleDateString() : endDate.toLocaleDateString();
+			} else {
+				// For more periods, show the start date of each period
+				label = startDate.toLocaleDateString();
+			}
+			
+			timePoints.push({
+				start: startDate,
+				end: endDate,
+				label: label
+			});
+		}
+		
+		return timePoints;
+	};
+	
+	// Use processed chart data or fallback
+	const finalChartData = chartData || (() => {
+		// Create fallback labels with actual dates
+		const today = new Date();
+		const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+		const twoWeeksAgo = new Date(today.getTime() - 14 * 24 * 60 * 60 * 1000);
+		const threeWeeksAgo = new Date(today.getTime() - 21 * 24 * 60 * 60 * 1000);
+		
+		return {
+			labels: [threeWeeksAgo.toLocaleDateString(), twoWeeksAgo.toLocaleDateString(), weekAgo.toLocaleDateString(), today.toLocaleDateString()],
+			datasets: [
 			{
 				label: 'Cases Analyzed',
-				data: [week1Cases, week2Cases, week3Cases, week4Cases],
+				data: [Math.max(1, casesAnalyzed - 3), Math.max(1, casesAnalyzed - 2), Math.max(1, casesAnalyzed - 1), casesAnalyzed],
 				borderColor: '#3B82F6',
 				backgroundColor: 'rgba(59, 130, 246, 0.1)',
 				borderWidth: 3,
@@ -66,10 +225,11 @@ const Dashboard: React.FC = () => {
 				pointRadius: 6,
 				pointHoverRadius: 8,
 				tension: 0.3,
+				yAxisID: 'y',
 			},
 			{
 				label: 'Fraud Detected',
-				data: [week1Fraud, week2Fraud, week3Fraud, week4Fraud],
+				data: [Math.max(0, fraudDetected - 1), Math.max(0, fraudDetected - 1), fraudDetected, fraudDetected],
 				borderColor: '#EF4444',
 				backgroundColor: 'rgba(239, 68, 68, 0.1)',
 				borderWidth: 3,
@@ -79,10 +239,11 @@ const Dashboard: React.FC = () => {
 				pointRadius: 6,
 				pointHoverRadius: 8,
 				tension: 0.3,
+				yAxisID: 'y',
 			},
 			{
 				label: 'Money Saved ($)',
-				data: [week1Money, week2Money, week3Money, week4Money],
+				data: [Math.max(100, moneySaved - 5000), Math.max(200, moneySaved - 3000), Math.max(500, moneySaved - 1000), moneySaved],
 				borderColor: '#10B981',
 				backgroundColor: 'rgba(16, 185, 129, 0.1)',
 				borderWidth: 3,
@@ -93,9 +254,10 @@ const Dashboard: React.FC = () => {
 				pointHoverRadius: 8,
 				tension: 0.3,
 				yAxisID: 'y1',
-			},
-		],
-	};
+			}
+		]
+		};
+	})();
 
 	const chartOptions = {
 		responsive: true,
@@ -129,19 +291,20 @@ const Dashboard: React.FC = () => {
 						if (label) {
 							label += ': ';
 						}
-						if (context.dataset.label === 'Money Saved ($)') {
-							label += '$' + context.parsed.y.toLocaleString();
-						} else {
-							label += context.parsed.y;
-						}
+						label += context.parsed.y;
 						return label;
 					},
 					afterBody: function(tooltipItems: any[]) {
 						const weekData = tooltipItems[0];
-						const cases = chartData.datasets[0].data[weekData.dataIndex];
-						const fraud = chartData.datasets[1].data[weekData.dataIndex];
+						const cases = finalChartData.datasets[0].data[weekData.dataIndex];
+						const fraud = finalChartData.datasets[1].data[weekData.dataIndex];
+						const moneyAmount = finalChartData.datasets[2].data[weekData.dataIndex];
 						const detectionRate = cases > 0 ? ((fraud / cases) * 100).toFixed(1) : '0';
-						return [`Detection Rate: ${detectionRate}%`];
+						
+						return [
+							`Detection Rate: ${detectionRate}%`,
+							`Money Saved: $${moneyAmount.toLocaleString()}`
+						];
 					},
 				},
 			},
@@ -172,7 +335,7 @@ const Dashboard: React.FC = () => {
 				position: 'left' as const,
 				title: {
 					display: true,
-					text: 'Cases',
+					text: 'Cases Analyzed',
 					font: {
 						size: 12,
 						weight: 'bold' as const,
@@ -246,6 +409,7 @@ const Dashboard: React.FC = () => {
 
 	const securityAlerts = [
 		{
+			id: 'fraud-detected-24h',
 			title: 'Recent Fraud Detected',
 			description: '2 fraudulent cases in last 24h',
 			severity: 'HIGH',
@@ -255,6 +419,7 @@ const Dashboard: React.FC = () => {
 			color: 'bg-red-100',
 		},
 		{
+			id: 'high-value-claims',
 			title: 'High-Value Suspicious Claims',
 			description: '2 claims over $10K with high fraud risk',
 			severity: 'MEDIUM',
@@ -264,6 +429,7 @@ const Dashboard: React.FC = () => {
 			color: 'bg-orange-100',
 		},
 		{
+			id: 'elevated-fraud-rate',
 			title: 'Elevated Fraud Rate',
 			description: 'Current fraud detection rate: 40%',
 			severity: 'HIGH',
@@ -273,6 +439,11 @@ const Dashboard: React.FC = () => {
 			color: 'bg-red-100',
 		}
 	];
+
+	// Function to dismiss an alert
+	const dismissAlert = (alertId: string) => {
+		setDismissedAlerts(prev => new Set([...prev, alertId]));
+	};
 
 	return (
 		<div className="p-6 space-y-6">
@@ -337,7 +508,16 @@ const Dashboard: React.FC = () => {
 					{/* Chart.js Multi-Line Chart */}
 					<div className="h-80 bg-white rounded-lg border border-gray-200 p-6 mb-6">
 						<div className="h-full">
-							<Line data={chartData} options={chartOptions} />
+							{finalChartData ? (
+								<Line data={finalChartData} options={chartOptions} />
+							) : (
+								<div className="flex items-center justify-center h-full">
+									<div className="text-center">
+										<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+										<p className="text-gray-600">Loading chart data...</p>
+									</div>
+								</div>
+							)}
 						</div>
 					</div>
 
@@ -412,8 +592,10 @@ const Dashboard: React.FC = () => {
 					</div>
 					
 					<div className="space-y-4">
-						{securityAlerts.map((alert, index) => (
-							<div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
+						{securityAlerts
+							.filter(alert => !dismissedAlerts.has(alert.id))
+							.map((alert) => (
+							<div key={alert.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow duration-200">
 								<div className="flex items-start space-x-3">
 									<div className={`p-2 rounded-lg ${alert.iconColor.replace('text-', 'bg-').replace('-600', '-100')}`}>
 										<FontAwesomeIcon icon={alert.icon} className={`w-4 h-4 ${alert.iconColor}`} />
@@ -427,9 +609,27 @@ const Dashboard: React.FC = () => {
 										</div>
 										<p className="text-sm text-gray-600">{alert.description}</p>
 									</div>
+									<button
+										onClick={() => dismissAlert(alert.id)}
+										className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors duration-200"
+										title="Dismiss alert"
+									>
+										<FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
+									</button>
 								</div>
 							</div>
 						))}
+						
+						{/* Show message when all alerts are dismissed */}
+						{securityAlerts.filter(alert => !dismissedAlerts.has(alert.id)).length === 0 && (
+							<div className="text-center py-8">
+								<div className="text-gray-400 mb-2">
+									<FontAwesomeIcon icon={faShieldAlt} className="w-8 h-8 mx-auto" />
+								</div>
+								<p className="text-sm text-gray-500">All security alerts have been dismissed</p>
+								<p className="text-xs text-gray-400 mt-1">New alerts will appear here when detected</p>
+							</div>
+						)}
 					</div>
 				</div>
 			</div>

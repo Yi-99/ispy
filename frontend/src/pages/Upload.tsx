@@ -622,7 +622,7 @@ const Upload: React.FC = () => {
 
           {/* Claim Title - hide only after analysis is complete */}
           {!items.some((i) => i.status === 'completed') && (
-            <div className="mt-6">
+            <div className="mt-6 w-1/2 mx-auto">
               <label htmlFor="analysisTitle" className="block text-sm font-medium text-gray-700 mb-2">
                 Claim Title
               </label>
