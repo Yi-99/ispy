@@ -25,8 +25,13 @@ function aggregateRisk(
   
   const SCHEMA_PROMPT = `
   You are a risk summarizer. You will receive a JSON payload that already includes computed risk scores.
-  Return STRICT JSON ONLY matching this schema. DO NOT add code fences or extra text.
+  Return STRICT JSON ONLY matching this schema. DO NOT add code fences, markdown, or extra text.
   Never change provided numeric values in the payload (scores, probabilities). You may add short textual "drivers" and "recommendations".
+  
+  IMPORTANT: 
+  - Return ONLY valid JSON without any formatting
+  - Do not include any control characters or special formatting
+  - Keep all text content simple and clean
   
   SCHEMA:
   {
@@ -68,6 +73,7 @@ function aggregateRisk(
   - If a field is missing in the payload, set it to a sensible default (null, [], or literal type in schema).
   - Keep drivers/recommendations short (max ~10 words each).
   - No speculation beyond the payload context.
+  - Avoid special characters, quotes, or formatting that could break JSON parsing.
   `.trim();
   
   function toCompactJSON(obj) {
@@ -81,8 +87,27 @@ function aggregateRisk(
   function parseJSONStrict(text) {
     // 코드펜스가 실수로 들어오면 제거
     const fence = text.match(/```json\s*([\s\S]*?)```/i);
-    const clean = fence ? fence[1] : text;
-    return JSON.parse(clean);
+    let clean = fence ? fence[1] : text;
+    
+    // 제어 문자 제거 (JSON 파싱 에러 방지)
+    clean = clean.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+    
+    // 추가 정리: 불필요한 공백과 줄바꿈 정리
+    clean = clean.trim();
+    
+    try {
+      return JSON.parse(clean);
+    } catch (error) {
+      console.error('JSON parse error:', error.message);
+      console.error('Problematic text:', clean.substring(0, 200) + '...');
+      // 기본값 반환
+      return {
+        key_findings: "Analysis completed but JSON parsing failed",
+        risk_factors: ["Technical error in analysis processing"],
+        recommendations: ["Review analysis manually"],
+        detailed_analysis: "Unable to parse AI analysis results due to formatting issues"
+      };
+    }
   }
   
   function fillDefaults(api) {
