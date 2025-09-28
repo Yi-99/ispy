@@ -228,9 +228,6 @@ const Cases: React.FC = () => {
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.statusColor}`}>
                           {statusInfo.status}
                         </span>
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                          {Math.round(completionRate)}% complete
-                        </span>
                       </div>
 
                       {/* Metrics Grid */}
