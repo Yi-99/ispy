@@ -103,10 +103,10 @@ app.post('/predict', async (req, res) => {
     }
 
     // Call Python scorer
-    const py = spawn('python3', ['service/scorer.py'], {
+    const py = spawn('python3', ['ml/scorer.py'], {
       env: {
         ...process.env,
-        MODEL_BUNDLE_PATH: 'service/fraud_ensemble_bundle.joblib',
+        MODEL_BUNDLE_PATH: 'ml/models/fraud_ensemble_bundle.joblib',
         THRESHOLD: '0.45'
       }
     });

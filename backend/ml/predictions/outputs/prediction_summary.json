@@ -1,0 +1,75 @@
+{
+  "summary_info": {
+    "total_images_tested": 7,
+    "correct_predictions": 6,
+    "accuracy_percentage": 85.7,
+    "timestamp": "2025-09-27T23:11:48.268372"
+  },
+  "fraud_probability_stats": {
+    "min_fraud_probability": 0.0871,
+    "max_fraud_probability": 0.9535,
+    "average_fraud_probability": 0.5586
+  },
+  "risk_level_distribution": {
+    "Low Risk": 3,
+    "High Risk": 4
+  },
+  "individual_results": [
+    {
+      "image": "data/test/Fraud/63.jpg",
+      "expected": "Fraud",
+      "fraud_prob": 0.1721,
+      "risk_level": "Low Risk",
+      "confidence": 0.8279,
+      "prediction_correct": false
+    },
+    {
+      "image": "data/test/Fraud/385.jpg",
+      "expected": "Fraud",
+      "fraud_prob": 0.9192,
+      "risk_level": "High Risk",
+      "confidence": 0.9192,
+      "prediction_correct": true
+    },
+    {
+      "image": "data/test/Fraud/1028.jpg",
+      "expected": "Fraud",
+      "fraud_prob": 0.9535,
+      "risk_level": "High Risk",
+      "confidence": 0.9535,
+      "prediction_correct": true
+    },
+    {
+      "image": "data/test/Fraud/1060.jpg",
+      "expected": "Fraud",
+      "fraud_prob": 0.8018,
+      "risk_level": "High Risk",
+      "confidence": 0.8018,
+      "prediction_correct": true
+    },
+    {
+      "image": "data/test/Fraud/1227.jpg",
+      "expected": "Fraud",
+      "fraud_prob": 0.8043,
+      "risk_level": "High Risk",
+      "confidence": 0.8043,
+      "prediction_correct": true
+    },
+    {
+      "image": "data/test/Non-Fraud/3.jpg",
+      "expected": "Non-Fraud",
+      "fraud_prob": 0.1724,
+      "risk_level": "Low Risk",
+      "confidence": 0.8276,
+      "prediction_correct": true
+    },
+    {
+      "image": "data/test/Non-Fraud/4.jpg",
+      "expected": "Non-Fraud",
+      "fraud_prob": 0.0871,
+      "risk_level": "Low Risk",
+      "confidence": 0.9129,
+      "prediction_correct": true
+    }
+  ]
+}
