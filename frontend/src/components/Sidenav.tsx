@@ -6,7 +6,6 @@ import {
   faFileAlt, 
   faShieldAlt, 
   faTimes,
-  faFilePdf
 } from '@fortawesome/free-solid-svg-icons';
 import { useStats } from '../contexts/StatsContext';
 

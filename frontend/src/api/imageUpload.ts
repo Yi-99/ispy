@@ -1,9 +1,7 @@
 import { 
 	supabase, 
 	STORAGE_BUCKET, 
-	UPLOAD_FOLDER, 
-	FRAUD_FOLDER, 
-	NON_FRAUD_FOLDER 
+	UPLOAD_FOLDER,
 } from '../lib/supabase';
 import axios from 'axios';
 
@@ -42,7 +40,8 @@ export const uploadImage = async (file: File): Promise<UploadResult> => {
 		const filename = `image-${timestamp}-${randomSuffix}.${fileExtension}`;
 		
 		// Upload file to Supabase Storage
-		const { data, error } = await supabase.storage
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		const { error } = await supabase.storage
 			.from(STORAGE_BUCKET)
 			.upload(`${UPLOAD_FOLDER}/${filename}`, file, {
 				cacheControl: '3600',

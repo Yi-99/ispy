@@ -25,7 +25,6 @@ import {
 	faFileAlt, 
 	faExclamationTriangle, 
 	faDollarSign, 
-	faClock, 
 	faShieldAlt, 
 	faChartLine,
 	faArrowUp
