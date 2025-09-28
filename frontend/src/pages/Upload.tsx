@@ -511,7 +511,7 @@ const Upload: React.FC = () => {
     <div className="flex items-center mb-6">
       <div className="flex items-center">
         <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-2xl text-blue-600 mr-3" />
-        <h2 className="text-2xl font-semibold text-gray-900">Upload Vehicle Damage Images</h2>
+        <h2 className="text-2xl font-semibold text-gray-900">Upload Files</h2>
       </div>
     </div>
   );
@@ -918,7 +918,7 @@ const Upload: React.FC = () => {
         )}
 
         {/* Comprehensive Analysis Results */}
-        {!batch.isAnalyzing && comprehensiveResult && (
+        {!batch.isAnalyzing && isAnalyzed && comprehensiveResult && (
           <div className="mt-8 border border-gray-200 rounded-lg p-6 bg-gradient-to-r from-blue-50 to-purple-50">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
