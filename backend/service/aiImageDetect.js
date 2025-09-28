@@ -101,7 +101,6 @@ async function analyzeForFraud(imageUrl) {
         // Send the Blob to Hugging Face
         const output = await client_hf.imageClassification({
             model: process.env.HF_AI_DETECTOR_MODEL_NAME,
-            provider: 'hf-inference',
             data: imageBlob
         });
 
