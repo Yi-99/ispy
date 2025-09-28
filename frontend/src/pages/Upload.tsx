@@ -646,7 +646,7 @@ const Upload: React.FC = () => {
               />
             </div>
           )}
-                
+
           {/* Single Analyze button - only show when not analyzed and not currently analyzing */}
           {!isAnalyzed && !batch.isAnalyzing && (
             <div className="mt-6 text-center">
@@ -674,7 +674,7 @@ const Upload: React.FC = () => {
               </button>
             </div>
           )}
-            
+
           {/* Batch Analysis Progress */}
           {batch.isAnalyzing && (
             <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
