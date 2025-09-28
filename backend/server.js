@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs');
 
 const { detectImage, detectImageFromUrl, analyzeForFraud } = require('./service/aiImageDetect');
-const documentScanRouter = require('./service/documentScan');
+const { parseClaimPdf } = require('./service/documentScan');
 const { spawn } = require('child_process');
 
 const app = express();
@@ -60,7 +60,7 @@ app.use((req, res, next) => {
 });
 
 // Document scan routes
-app.use('/api', documentScanRouter);
+app.post('/api/parse-claim-pdf', parseClaimPdf);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
