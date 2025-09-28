@@ -67,58 +67,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Detect image from file path endpoint
-app.post('/detect_image', async (req, res) => {
-  try {
-    const { image_path } = req.body;
-    if (!image_path) {
-      return res.status(400).json({ error: 'image_path is required' });
-    }
-    
-    const result = await detectImage(image_path);
-    res.json({ result });
-  } catch (error) {
-    console.error('Error in /detect_image:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Detect image from URL endpoint
-app.post('/detect_image_url', async (req, res) => {
-  try {
-    const { image_url } = req.body;
-    if (!image_url) {
-      return res.status(400).json({ error: 'image_url is required' });
-    }
-    
-    const result = await detectImageFromUrl(image_url);
-    res.json({ result });
-  } catch (error) {
-    console.error('Error in /detect_image_url:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Upload and detect image endpoint
-app.post('/upload_and_detect', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image file provided' });
-    }
-    
-    const imagePath = req.file.path;
-    const result = await detectImage(imagePath);
-    
-    // Clean up uploaded file after processing
-    fs.unlinkSync(imagePath);
-    
-    res.json({ result });
-  } catch (error) {
-    console.error('Error in /upload_and_detect:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Enhanced fraud detection endpoint
 app.post('/analyze_fraud', async (req, res) => {
   try {
@@ -134,32 +82,6 @@ app.post('/analyze_fraud', async (req, res) => {
     });
   } catch (error) {
     console.error('Error in /analyze_fraud:', error);
-    res.status(500).json({ 
-      success: false,
-      error: error.message 
-    });
-  }
-});
-
-// Upload and analyze for fraud endpoint
-app.post('/upload_and_analyze', upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image file provided' });
-    }
-    
-    const imagePath = req.file.path;
-    const result = await analyzeForFraud(imagePath);
-    
-    // Clean up uploaded file after processing
-    fs.unlinkSync(imagePath);
-    
-    res.json({ 
-      success: true,
-      data: result
-    });
-  } catch (error) {
-    console.error('Error in /upload_and_analyze:', error);
     res.status(500).json({ 
       success: false,
       error: error.message 

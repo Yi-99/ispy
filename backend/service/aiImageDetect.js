@@ -25,8 +25,6 @@ try {
     console.log('⚠️ Using fallback Blob implementation');
 }
 
-console.log('HF_API_KEY:', process.env.HF_API_KEY);
-
 // Initialize Hugging Face client
 const client_hf = new InferenceClient(process.env.HF_API_KEY);
 

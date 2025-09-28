@@ -12,6 +12,7 @@ import {
   faShieldAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import { uploadImage, analyzeImage, type UploadResult, type AnalysisResult } from '../api/imageUpload';
+import { saveAnalysisMetadata, saveBatchAnalysis, type AnalysisMetadata, type BatchAnalysis } from '../api/database';
 import { useStats } from '../contexts/StatsContext';
 import ResultsDisplay from '../components/ResultsDisplay';
 
@@ -51,6 +52,7 @@ const Upload: React.FC = () => {
     completedFiles: 0
   });
   const [showResults, setShowResults] = useState(false);
+  const [analysisCompleted, setAnalysisCompleted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { updateStats } = useStats();
 
@@ -233,7 +235,55 @@ const Upload: React.FC = () => {
       isAnalyzing: false,
       currentFile: undefined
     }));
+    
+    // Save all analysis metadata to database
+    const completedFiles = uploadedFiles.filter(f => f.status === 'completed');
+    const analysisMetadata: AnalysisMetadata[] = completedFiles.map(file => ({
+      filename: file.file.name,
+      file_size: file.file.size,
+      file_url: file.url || '',
+      fraud_score: parseFloat(file.analysis?.fraudScore || '0'),
+      ai_score: parseFloat(file.analysis?.aiScore || '0'),
+      is_fraudulent: file.analysis?.isFraudulent || false,
+      risk_level: file.analysis?.riskLevel || 'LOW',
+      ai_analysis: file.analysis?.aiAnalysis || '',
+      fraud_analysis: file.analysis?.fraudAnalysis || '',
+      detected_issues: file.keyIndicators || []
+    }));
+
+    // Save individual analysis results
+    for (const metadata of analysisMetadata) {
+      await saveAnalysisMetadata(metadata);
+    }
+
+    // Save batch analysis summary
+    const fraudDetectedCount = completedFiles.filter(f => f.analysis?.isFraudulent).length;
+    const totalClaimAmount = completedFiles.reduce((sum, f) => sum + (f.claimAmount || 0), 0);
+    
+    const batchData: BatchAnalysis = {
+      total_files: completedFiles.length,
+      completed_files: completedFiles.length,
+      fraud_detected_count: fraudDetectedCount,
+      total_claim_amount: totalClaimAmount,
+      file_urls: []
+    };
+    
+    await saveBatchAnalysis(batchData);
+    
+    setAnalysisCompleted(true);
     setShowResults(true);
+  };
+
+  const clearAnalysisAndStartFresh = () => {
+    setSelectedFiles([]);
+    setUploadedFiles([]);
+    setShowResults(false);
+    setAnalysisCompleted(false);
+    setBatchState({
+      isAnalyzing: false,
+      totalFiles: 0,
+      completedFiles: 0
+    });
   };
 
 
@@ -261,12 +311,12 @@ const Upload: React.FC = () => {
         {/* Main Upload Section */}
         <div className="mb-8">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-            <div className="flex items-center mb-6">
+            {!analysisCompleted && <div className="flex items-center mb-6">
               <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-2xl text-blue-600 mr-3" />
               <h2 className="text-2xl font-semibold text-gray-900">Upload Vehicle Damage Images</h2>
-            </div>
+            </div>}
             
-            {selectedFiles.length === 0 ? (
+            {!analysisCompleted && selectedFiles.length === 0 ? (
               <div 
                 className={`border-2 border-dashed rounded-lg p-12 transition-colors duration-200 cursor-pointer ${
                   isDragOver 
@@ -295,7 +345,7 @@ const Upload: React.FC = () => {
                   </p>
                 </div>
               </div>
-            ) : (
+            ) : !analysisCompleted ? (
               <div>
                 <p className="text-gray-600 mb-6">
                   Select multiple images for batch processing ({selectedFiles.length} files selected)
@@ -362,6 +412,31 @@ const Upload: React.FC = () => {
                         : `Analyze ${selectedFiles.length} Images for Fraud`
                       }
                     </span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-20 h-20 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-6">
+                  <FontAwesomeIcon icon={faShieldAlt} className="text-3xl text-green-600" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-3">Analysis Complete!</h3>
+                <p className="text-gray-600 mb-8">
+                  Your batch analysis has been completed and saved to the database.
+                </p>
+                <div className="flex justify-center space-x-4">
+                  <button
+                    onClick={clearAnalysisAndStartFresh}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faArrowUpFromBracket} />
+                    <span>Upload More Pictures</span>
+                  </button>
+                  <button
+                    onClick={() => navigate('/dashboard')}
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition-colors"
+                  >
+                    View Dashboard
                   </button>
                 </div>
               </div>

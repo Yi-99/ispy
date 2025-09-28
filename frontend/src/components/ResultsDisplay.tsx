@@ -97,11 +97,8 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files }) => {
                 <div className="mb-4">
                   <span className="text-sm font-medium text-gray-700 uppercase">CLAIM DETAILS</span>
                   <div className="mt-1">
-                    <p className="text-sm text-gray-900 font-medium">
+                    <p className="text-sm text-gray-900 font-bold">
                       ${(file.claimAmount || 0).toLocaleString()} estimated claim
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      vehicle - damage assessment
                     </p>
                   </div>
                 </div>
