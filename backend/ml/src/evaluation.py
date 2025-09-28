@@ -74,10 +74,10 @@ class FraudDetectionEvaluator:
                 # Calculate uncertainty (entropy)
                 uncertainty = -torch.sum(probabilities * torch.log(probabilities + 1e-8), dim=1)
                 
-                all_predictions.extend(predictions.cpu().numpy())
-                all_targets.extend(target.cpu().numpy())
-                all_probabilities.extend(probabilities[:, 1].cpu().numpy())  # Fraud probability
-                all_uncertainties.extend(uncertainty.cpu().numpy())
+                all_predictions.extend(predictions.cpu().detach().numpy())
+                all_targets.extend(target.cpu().detach().numpy())
+                all_probabilities.extend(probabilities[:, 1].cpu().detach().numpy())  # Fraud probability
+                all_uncertainties.extend(uncertainty.cpu().detach().numpy())
         
         # Convert to numpy arrays
         predictions = np.array(all_predictions)

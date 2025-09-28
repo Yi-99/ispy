@@ -89,8 +89,8 @@ class HybridFraudDetector:
                     if hasattr(cnn_features, 'view'):
                         cnn_features = cnn_features.view(cnn_features.size(0), -1)
                 
-                features.extend(cnn_features.cpu().numpy())
-                labels.extend(target.numpy())
+                features.extend(cnn_features.cpu().detach().numpy())
+                labels.extend(target.cpu().detach().numpy())
         
         return np.array(features), np.array(labels)
     

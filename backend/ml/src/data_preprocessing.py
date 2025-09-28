@@ -214,7 +214,8 @@ class EnhancedDataPreprocessor:
             A.OneOf([
                 A.CoarseDropout(max_holes=8, max_height=32, max_width=32, 
                               min_holes=1, min_height=8, min_width=8, p=0.4),
-                A.Cutout(num_holes=16, max_h_size=16, max_w_size=16, p=0.3),
+                A.CoarseDropout(max_holes=16, max_height=16, max_width=16, 
+                              min_holes=1, min_height=4, min_width=4, p=0.3),
             ], p=0.3),
             
             A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),

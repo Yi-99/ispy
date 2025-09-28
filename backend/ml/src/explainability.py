@@ -105,10 +105,10 @@ class FraudDetectionExplainer:
         explanation = {
             'shap_values': shap_values,
             'feature_importance': feature_importance,
-            'prediction': predicted_class.cpu().numpy(),
-            'probabilities': probabilities.cpu().numpy(),
-            'confidence': confidence.cpu().numpy(),
-            'input_data': input_data.cpu().numpy()
+            'prediction': predicted_class.cpu().detach().numpy(),
+            'probabilities': probabilities.cpu().detach().numpy(),
+            'confidence': confidence.cpu().detach().numpy(),
+            'input_data': input_data.cpu().detach().numpy()
         }
         
         return explanation
@@ -123,7 +123,7 @@ class FraudDetectionExplainer:
         
         # Convert tensor to numpy array
         if isinstance(input_data, torch.Tensor):
-            input_array = input_data.cpu().numpy()
+            input_array = input_data.cpu().detach().numpy()
         else:
             input_array = input_data
         
@@ -153,7 +153,7 @@ class FraudDetectionExplainer:
             with torch.no_grad():
                 predictions = self.model(batch_tensor)
                 probabilities = torch.softmax(predictions, dim=1)
-                return probabilities.cpu().numpy()
+                return probabilities.cpu().detach().numpy()
         
         # Generate explanation
         explanation = self.lime_explainer.explain_instance(
@@ -174,9 +174,9 @@ class FraudDetectionExplainer:
         
         return {
             'explanation': explanation,
-            'prediction': predicted_class.cpu().numpy(),
-            'probabilities': probabilities.cpu().numpy(),
-            'confidence': confidence.cpu().numpy(),
+            'prediction': predicted_class.cpu().detach().numpy(),
+            'probabilities': probabilities.cpu().detach().numpy(),
+            'confidence': confidence.cpu().detach().numpy(),
             'input_image': input_array
         }
     

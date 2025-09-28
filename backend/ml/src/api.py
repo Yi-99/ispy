@@ -141,20 +141,17 @@ def preprocess_image(image_data: str) -> torch.Tensor:
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
-        # Convert to numpy array
-        image_array = np.array(image)
+        # Use torchvision transforms (same as training)
+        import torchvision.transforms as transforms
         
-        # Resize and normalize
-        image_resized = cv2.resize(image_array, (224, 224))
-        image_normalized = image_resized.astype(np.float32) / 255.0
+        transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
         
-        # ImageNet normalization
-        mean = np.array([0.485, 0.456, 0.406])
-        std = np.array([0.229, 0.224, 0.225])
-        image_normalized = (image_normalized - mean) / std
-        
-        # Convert to tensor
-        image_tensor = torch.from_numpy(image_normalized).permute(2, 0, 1).unsqueeze(0)
+        # Apply transforms
+        image_tensor = transform(image).unsqueeze(0)  # Add batch dimension
         
         return image_tensor
         
@@ -162,13 +159,13 @@ def preprocess_image(image_data: str) -> torch.Tensor:
         raise HTTPException(status_code=400, detail=f"Image preprocessing failed: {str(e)}")
 
 
-# In api.py, modify the predict_fraud function:
 def predict_fraud(model: nn.Module, image_tensor: torch.Tensor, 
                  include_uncertainty: bool = False) -> Dict:
     """Make fraud prediction with probability scoring"""
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = model.to(device)
-    image_tensor = image_tensor.to(device)
+
+    model = model.cpu()
+    model.eval()
+    image_tensor = image_tensor.cpu()
     
     with torch.no_grad():
         # Forward pass
@@ -176,7 +173,7 @@ def predict_fraud(model: nn.Module, image_tensor: torch.Tensor,
         probabilities = torch.softmax(output, dim=1)
         
         # Extract fraud probability (0.0 to 1.0)
-        fraud_probability = probabilities[0, 1].item()  # This is already 0.0 to 1.0
+        fraud_probability = probabilities[0, 1].item()
         
         # Calculate confidence (how certain the model is)
         confidence = probabilities.max().item()
@@ -184,18 +181,29 @@ def predict_fraud(model: nn.Module, image_tensor: torch.Tensor,
         # Calculate uncertainty if requested
         uncertainty = None
         if include_uncertainty:
-            uncertainty_estimator = UncertaintyEstimator(model)
-            mean_pred, uncertainty = uncertainty_estimator(image_tensor)
-            uncertainty = uncertainty.item()
+            # Calculate entropy as uncertainty measure
+            entropy = -torch.sum(probabilities * torch.log(probabilities + 1e-8), dim=1)
+            uncertainty = entropy[0].item()
+        
+        # Determine prediction
+        prediction = "Fraud" if fraud_probability >= 0.5 else "Non-Fraud"
+        
+        # Calculate risk level
+        risk_level = _calculate_risk_level(fraud_probability)
         
         return {
-            'fraud_probability': fraud_probability,  # 0.0 to 1.0
-            'confidence': confidence,               # 0.0 to 1.0
-            'uncertainty': uncertainty,             # 0.0 to 1.0
-            'risk_level': get_risk_level(fraud_probability)  # Low/Medium/High
+            "fraud_probability": round(fraud_probability, 4),
+            "non_fraud_probability": round(1 - fraud_probability, 4),
+            "prediction": prediction,
+            "confidence": round(confidence, 4),
+            "risk_level": risk_level,
+            "uncertainty": round(uncertainty, 4) if uncertainty else None,
+            "processing_time": 0.0,
+            "model_used": "resnet50",
+            "explanation": None
         }
 
-def get_risk_level(probability: float) -> str:
+def _calculate_risk_level(probability: float) -> str:
     """Convert probability to risk level"""
     if probability < 0.3:
         return "Low Risk"
@@ -325,6 +333,7 @@ async def predict_fraud_single(request: PredictionRequest):
         
         # Make prediction
         model = loaded_models[request.model_name]
+        model.eval()
         result = predict_fraud(model, image_tensor, include_uncertainty=True)
         
         # Apply threshold
@@ -346,9 +355,9 @@ async def predict_fraud_single(request: PredictionRequest):
         processing_time = time.time() - start_time
         
         return PredictionResponse(
-            prediction=result['prediction'],
-            confidence=result['confidence'],
             fraud_probability=result['fraud_probability'],
+            risk_level=result['risk_level'],
+            confidence=result['confidence'],
             uncertainty=result['uncertainty'],
             processing_time=processing_time,
             model_used=request.model_name,
@@ -404,9 +413,9 @@ async def predict_fraud_file(
         processing_time = time.time() - start_time
         
         return PredictionResponse(
-            prediction=result['prediction'],
-            confidence=result['confidence'],
             fraud_probability=result['fraud_probability'],
+            risk_level=result['risk_level'],
+            confidence=result['confidence'],
             uncertainty=result['uncertainty'],
             processing_time=processing_time,
             model_used=model_name,

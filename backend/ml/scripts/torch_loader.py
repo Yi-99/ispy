@@ -22,7 +22,7 @@ def load_and_test_model():
         model = get_model('resnet50', num_classes=2)
         
         # Load the trained weights
-        checkpoint_path = 'best_resnet50_fraud_detector.pth'
+        checkpoint_path = 'results/best_resnet50_fraud_detector.pth'
         if not os.path.exists(checkpoint_path):
             print(f"Error: Model file not found at {checkpoint_path}")
             return None
