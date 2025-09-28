@@ -1,19 +1,19 @@
 {
   "image_path": "data/test/Fraud/63.jpg",
-  "timestamp": "2025-09-27T23:11:35.779660",
+  "timestamp": "2025-09-28T04:33:58.471410",
   "expected_label": "Fraud",
   "prediction_result": {
     "fraud_probability": 0.1721,
     "risk_level": "Low Risk",
     "confidence": 0.8279,
     "uncertainty": 0.4592,
-    "processing_time": 0.047017574310302734,
+    "processing_time": 0.09175491333007812,
     "model_used": "resnet50",
     "explanation": null
   },
   "model_info": {
     "model_used": "resnet50",
-    "processing_time": 0.047017574310302734
+    "processing_time": 0.09175491333007812
   },
   "fraud_analysis": {
     "fraud_probability": 0.1721,
