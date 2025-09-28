@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 
 export interface ImageAnalysis {
   id?: string;
+  analysis_name: string;
   filename: string;
   file_size: number;
   file_url: string;
@@ -17,7 +18,7 @@ export interface ImageAnalysis {
 
 export interface AnalysisMetadata {
   id?: string;
-  title: string;
+  analysis_name: string;
   total_files: number;
   completed_files: number;
   fraud_detected_count: number;
@@ -25,6 +26,25 @@ export interface AnalysisMetadata {
   created_at?: string;
   file_urls: string[];
 }
+
+export const fetchAnalysisNames = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('analysis_metadata')
+      .select('analysis_name')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching analysis names:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error fetching analysis names:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to fetch analysis names' };
+  }
+};
 
 /**
  * Save analysis metadata to Supabase database
@@ -48,6 +68,28 @@ export const saveAnalysisMetadata = async (metadata: AnalysisMetadata) => {
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to save metadata' 
+    };
+  }
+};
+
+export const updateAnalysisMetadata = async (metadata: AnalysisMetadata) => {
+  try {
+    const { data, error } = await supabase
+      .from('analysis_metadata')
+      .update(metadata)
+      .eq('analysis_name', metadata.analysis_name);
+
+    if (error) {
+      console.error('Error updating analysis metadata:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error updating analysis metadata:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to update analysis metadata' 
     };
   }
 };

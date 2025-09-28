@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -16,10 +16,13 @@ import {
   saveAnalysisMetadata, 
   type AnalysisMetadata, 
   type ImageAnalysis, 
-  saveImageAnalysis 
+  saveImageAnalysis,
+  fetchAnalysisNames,
+  updateAnalysisMetadata
 } from '../api/database';
 import { useStats } from '../contexts/StatsContext';
 import ResultsDisplay from '../components/ResultsDisplay';
+import { toast } from 'react-toastify';
 
 interface SelectedFile {
   id: string;
@@ -60,9 +63,21 @@ const Upload: React.FC = () => {
   const [analysisCompleted, setAnalysisCompleted] = useState(false);
   const [analysisTitle, setAnalysisTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [analysisNames, setAnalysisNames] = useState<string[]>([]);
   const { updateStats } = useStats();
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchAnalysisNamesAsync = async () => {
+      const res = await fetchAnalysisNames();
+      if (res && res.success && Array.isArray(res.data)) {
+        setAnalysisNames(res.data.map((item: { analysis_name: string }) => item.analysis_name));
+        console.log('analysisNames:', res.data);
+      }
+    };
+    fetchAnalysisNamesAsync();
+  }, []);
 
   const handleFileSelect = (files: FileList) => {
     const fileArray = Array.from(files);
@@ -127,6 +142,11 @@ const Upload: React.FC = () => {
       alert('Please enter a title for your analysis');
       return;
     }
+
+    if (analysisNames.includes(analysisTitle)) {
+      alert('Analysis title already exists');
+      return;
+    }
     
     await performBatchAnalysis();
   };
@@ -170,6 +190,21 @@ const Upload: React.FC = () => {
       claimAmount: number;
       keyIndicators: string[];
     }> = [];
+
+    // Create initial analysis metadata record
+    const initialRes = await saveAnalysisMetadata({
+      analysis_name: analysisTitle,
+      total_files: selectedFiles.length,
+      completed_files: 0,
+      fraud_detected_count: 0,
+      total_claim_amount: 0,
+      file_urls: [],
+    });
+
+    if (!initialRes.success) {
+      toast.error(initialRes.error);
+      throw new Error(initialRes.error);
+    }
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const selectedFile = selectedFiles[i];
@@ -293,6 +328,7 @@ const Upload: React.FC = () => {
     
     // Save all analysis metadata to database using tracked results
     const imageAnalysis: ImageAnalysis[] = completedAnalysisResults.map(result => ({
+      analysis_name: analysisTitle,
       filename: result.uploadResult.filename || '',
       file_size: result.file.file.size,
       file_url: result.uploadResult.url || '',
@@ -317,7 +353,7 @@ const Upload: React.FC = () => {
     const totalClaimAmount = completedAnalysisResults.reduce((sum, result) => sum + result.claimAmount, 0);
     
     const analysisMetadata: AnalysisMetadata = {
-      title: analysisTitle,
+      analysis_name: analysisTitle,
       total_files: selectedFiles.length, // Use the original number of selected files
       completed_files: completedAnalysisResults.length, // Use the actual number of completed files
       fraud_detected_count: fraudDetectedCount,
@@ -327,7 +363,13 @@ const Upload: React.FC = () => {
 
     console.log('analysisMetadata:', analysisMetadata);
     
-    await saveAnalysisMetadata(analysisMetadata);
+    await updateAnalysisMetadata(analysisMetadata);
+    
+    // Refetch analysis names after completion
+    const res = await fetchAnalysisNames();
+    if (res && res.success && Array.isArray(res.data)) {
+      setAnalysisNames(res.data.map((item: { analysis_name: string }) => item.analysis_name));
+    }
     
     setAnalysisCompleted(true);
     setShowResults(true);
