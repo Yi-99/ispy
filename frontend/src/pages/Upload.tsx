@@ -157,7 +157,9 @@ const Upload: React.FC = () => {
 
 
   /* ------------- Select & Remove ------------- */
-  const onPickClick = () => inputRef.current?.click();
+  const onPickClick = () => {
+    inputRef.current?.click();
+  };
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -540,22 +542,22 @@ const Upload: React.FC = () => {
               onDrop={onDrop}
               onClick={onPickClick}
               >
-                  <div className="text-center">
-                    <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-6">
-                      <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-3xl text-blue-600" />
-                    </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Drop Images/PDFs here, or click to browse
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  Select multiple images for batch processing
-                    </p>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 mx-auto transition-colors">
-                      <FontAwesomeIcon icon={faFile} />
-                      <span>Browse Files</span>
-                    </button>
-                <p className="text-sm text-gray-500 mt-3">Supports: JPG/PNG, PDF • Max size depends on backend</p>
+                <div className="text-center">
+                  <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-6">
+                    <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-3xl text-blue-600" />
                   </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    Drop Images/PDFs here, or click to browse
+                  </h3>
+                  <p className="text-gray-600 mb-4">
+                    Select multiple images for batch processing
+                  </p>
+                  <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 mx-auto transition-colors">
+                    <FontAwesomeIcon icon={faFile} />
+                    <span>Browse Files</span>
+                  </button>
+                  <p className="text-sm text-gray-500 mt-3">Supports: JPG/PNG, PDF • Max size depends on backend</p>
+                </div>
               <input
                 ref={inputRef}
                 type="file"
@@ -564,7 +566,7 @@ const Upload: React.FC = () => {
                 onChange={onInputChange}
                 className="hidden"
               />
-                </div>
+            </div>
           )}
 
           {/* Selected files cards - hide only after analysis is complete */}
@@ -604,7 +606,7 @@ const Upload: React.FC = () => {
                 
                 {/* Upload More Button Card */}
                 <div 
-                  className="relative bg-white rounded-lg border-2 border-dashed border-gray-300 p-4 w-48 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                  className="relative bg-white rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 p-4 w-48 cursor-pointer transition-colors duration-200"
                   onClick={onPickClick}
                 >
                   <div className="aspect-square w-full rounded-lg overflow-hidden bg-gray-50 mb-3 flex items-center justify-center">
@@ -615,6 +617,14 @@ const Upload: React.FC = () => {
                   </div>
                   <p className="text-sm font-medium text-gray-900 mb-1">Upload More Files</p>
                   <p className="text-xs text-gray-500">Click to add more images or PDFs</p>
+                  <input
+                    ref={inputRef}
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,application/pdf"
+                    onChange={onInputChange}
+                    className="hidden"
+                  />
                 </div>
               </div>
             </div>
@@ -700,7 +710,6 @@ const Upload: React.FC = () => {
               <div className="space-y-3">
                 {items.map((it) => {
                   const isAnalyzing = it.status === 'analyzing' || it.status === 'uploading';
-                  const isPending = it.status === 'uploading' && (it.progress || 0) < 50;
                   const isCompleted = it.status === 'completed';
                   const isError = it.status === 'error';
                   
@@ -739,9 +748,6 @@ const Upload: React.FC = () => {
                             <div className="flex items-center space-x-2">
                               {isAnalyzing && (
                                 <FontAwesomeIcon icon={faSpinner} className="text-gray-800 animate-spin" />
-                              )}
-                              {isPending && (
-                                <FontAwesomeIcon icon={faSpinner} className="text-gray-400" />
                               )}
                               {isCompleted && (
                                 <FontAwesomeIcon icon={faCheckCircle} className="text-green-600" />
