@@ -70,11 +70,21 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files, actionButton }) 
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-700 uppercase">AI GEN RISK</span>
-                    <span className="text-3xl font-bold text-gray-900">
+                    <span className={`text-3xl font-bold ${
+                      (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 70 ? 'text-red-500' : 
+                      (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 50 ? 'text-yellow-500' : 'text-green-500'
+                    }`}>
                       {file.analysis?.aiScore ? Math.round(parseFloat(file.analysis.aiScore) * 100) : 0}%
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-2 ${
+                    (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 70 ? 'bg-red-100 text-red-800' : 
+                    (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                  }`}>
+                    {(file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 70 ? 'High' : 
+                      (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 50 ? 'Medium' : 'Low'}
+                  </span>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
                       className={`h-2 rounded-full ${
                         (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 70 ? 'bg-red-500' : 
@@ -83,13 +93,6 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files, actionButton }) 
                       style={{ width: `${file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0}%` }}
                     ></div>
                   </div>
-                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                    (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 70 ? 'bg-red-100 text-red-800' : 
-                    (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
-                  }`}>
-                    {(file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 70 ? 'High Risk' : 
-                      (file.analysis?.aiScore ? parseFloat(file.analysis.aiScore) * 100 : 0) > 50 ? 'Medium Risk' : 'Low Risk'}
-                  </span>
                 </div>
               </div>
               
@@ -98,11 +101,21 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files, actionButton }) 
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-700 uppercase">FRAUD RISK</span>
-                    <span className="text-3xl font-bold text-gray-900">
+                    <span className={`text-3xl font-bold ${
+                      (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 70 ? 'text-red-500' : 
+                      (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 50 ? 'text-yellow-500' : 'text-green-500'
+                    }`}>
                       {file.analysis?.fraudScore ? Math.round(parseFloat(file.analysis.fraudScore) * 100) : 0}%
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-2 ${
+                    (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 70 ? 'bg-red-100 text-red-800' : 
+                    (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                  }`}>
+                    {(file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 70 ? 'High' : 
+                      (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 50 ? 'Medium' : 'Low'}
+                  </span>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
                       className={`h-2 rounded-full ${
                         (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 70 ? 'bg-red-500' : 
@@ -111,13 +124,6 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files, actionButton }) 
                       style={{ width: `${file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0}%` }}
                     ></div>
                   </div>
-                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                    (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 70 ? 'bg-red-100 text-red-800' : 
-                    (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 50 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
-                  }`}>
-                    {(file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 70 ? 'Fraudulent' : 
-                      (file.analysis?.fraudScore ? parseFloat(file.analysis.fraudScore) * 100 : 0) > 50 ? 'Suspicious' : 'Genuine'}
-                  </span>
                 </div>
               </div>
               

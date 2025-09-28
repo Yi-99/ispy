@@ -11,7 +11,9 @@ import {
   faSpinner,
   faInfoCircle,
   faBan,
-  faRobot
+  faRobot,
+  faChevronLeft,
+  faChevronRight
 } from '@fortawesome/free-solid-svg-icons';
 import { fetchAnalysisMetadata, fetchImageAnalyses, type AnalysisMetadata, type ImageAnalysis } from '../api/database';
 
@@ -21,6 +23,8 @@ const CaseDetail: React.FC = () => {
   const [caseData, setCaseData] = useState<AnalysisMetadata | null>(null);
   const [images, setImages] = useState<ImageAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(5);
 
   useEffect(() => {
     if (analysisName) {
@@ -96,16 +100,29 @@ const CaseDetail: React.FC = () => {
     return 'text-green-600';
   };
 
-  const getConfidenceLevel = (score: number) => {
-    if (score >= 80) return { level: 'High', color: 'bg-green-100 text-green-800' };
-    if (score >= 50) return { level: 'Medium', color: 'bg-yellow-100 text-yellow-800' };
-    return { level: 'Low', color: 'bg-red-100 text-red-800' };
+
+  // Pagination logic
+  const totalPages = Math.ceil(images.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentImages = images.slice(startIndex, endIndex);
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const goToPreviousPage = () => {
+    setCurrentPage(prev => Math.max(prev - 1, 1));
+  };
+
+  const goToNextPage = () => {
+    setCurrentPage(prev => Math.min(prev + 1, totalPages));
   };
 
   if (loading) {
     return (
       <div className="p-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-full mx-auto">
           <div className="flex items-center justify-center h-64">
             <FontAwesomeIcon icon={faSpinner} className="text-4xl text-blue-600 animate-spin" />
           </div>
@@ -117,12 +134,12 @@ const CaseDetail: React.FC = () => {
   if (!caseData) {
     return (
       <div className="p-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-full mx-auto">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Case Not Found</h2>
             <button
               onClick={() => navigate('/cases')}
-              className="text-blue-600 hover:text-blue-800"
+              className="text-gray-800"
             >
               <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
               Back to All Cases
@@ -140,12 +157,12 @@ const CaseDetail: React.FC = () => {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-full mx-auto">
         {/* Header */}
         <div className="mb-6">
           <button
             onClick={() => navigate('/cases')}
-            className="flex items-center text-blue-600 hover:text-blue-800 mb-4"
+            className="flex items-center text-gray-800 mb-4"
           >
             <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
             Back to All Cases
@@ -244,13 +261,19 @@ const CaseDetail: React.FC = () => {
 
         {/* Analyzed Images Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">
-            Analyzed Images ({images.length})
-          </h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Analyzed Images ({images.length})
+            </h2>
+            {images.length > itemsPerPage && (
+              <div className="text-sm text-gray-600">
+                Showing {startIndex + 1}-{Math.min(endIndex, images.length)} of {images.length}
+              </div>
+            )}
+          </div>
 
           <div className="space-y-6">
-            {images.map((image, index) => {
-              const confidence = getConfidenceLevel(Math.round(image.fraud_score * 100));
+            {currentImages.map((image, index) => {
               const claimAmount = image.cost;
 
               return (
@@ -280,8 +303,18 @@ const CaseDetail: React.FC = () => {
                           <h3 className="text-xl font-bold text-gray-900 mb-1">
                             {image.filename || `Image ${index + 1}`}
                           </h3>
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${confidence.color}`}>
-                            {confidence.level} Conf.
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                            Math.round(image.fraud_score * 100) >= 70 || Math.round(image.ai_score * 100) >= 70
+                              ? 'bg-red-100 text-red-800'
+                              : Math.round(image.fraud_score * 100) >= 50 || Math.round(image.ai_score * 100) >= 50
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {Math.round(image.fraud_score * 100) >= 70 || Math.round(image.ai_score * 100) >= 70
+                              ? 'High'
+                              : Math.round(image.fraud_score * 100) >= 50 || Math.round(image.ai_score * 100) >= 50
+                              ? 'Medium'
+                              : 'Low'}
                           </span>
                         </div>
                       </div>
@@ -338,6 +371,68 @@ const CaseDetail: React.FC = () => {
               <p className="text-gray-600">
                 No analyzed images are associated with this case.
               </p>
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {images.length > itemsPerPage && (
+            <div className="mt-8 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={goToPreviousPage}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FontAwesomeIcon icon={faChevronLeft} className="w-4 h-4" />
+                </button>
+                
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    // Show first page, last page, current page, and pages around current page
+                    const shouldShow = 
+                      page === 1 || 
+                      page === totalPages || 
+                      (page >= currentPage - 1 && page <= currentPage + 1);
+                    
+                    if (!shouldShow) {
+                      // Show ellipsis for gaps
+                      if (page === 2 && currentPage > 4) {
+                        return <span key={`ellipsis-${page}`} className="px-2 text-gray-500">...</span>;
+                      }
+                      if (page === totalPages - 1 && currentPage < totalPages - 3) {
+                        return <span key={`ellipsis-${page}`} className="px-2 text-gray-500">...</span>;
+                      }
+                      return null;
+                    }
+                    
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => goToPage(page)}
+                        className={`px-3 py-2 text-sm font-medium rounded-md ${
+                          page === currentPage
+                            ? 'bg-blue-600 text-white'
+                            : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  })}
+                </div>
+                
+                <button
+                  onClick={goToNextPage}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FontAwesomeIcon icon={faChevronRight} className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages}
+              </div>
             </div>
           )}
         </div>

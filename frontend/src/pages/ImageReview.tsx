@@ -100,7 +100,7 @@ const ImageReview: React.FC = () => {
   if (loading) {
     return (
       <div className="p-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-full mx-auto">
           <div className="flex items-center justify-center h-64">
             <FontAwesomeIcon icon={faSpinner} className="text-4xl text-blue-600 animate-spin" />
           </div>
@@ -111,7 +111,7 @@ const ImageReview: React.FC = () => {
 
   return (
     <div className="p-6">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-full mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Image Review</h1>
           <p className="text-gray-600">
@@ -238,9 +238,6 @@ const ImageReview: React.FC = () => {
                         </span>
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${riskInfo.riskColor}`}>
                           {riskInfo.risk}
-                        </span>
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
-                          {caseItem.fraud_score > 80 ? 'high' : caseItem.fraud_score > 50 ? 'medium' : 'low'} confidence
                         </span>
                       </div>
 

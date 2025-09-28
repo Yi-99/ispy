@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faArrowLeft,
   faArrowUpFromBracket,
   faCheckCircle, 
+  faDollarSign,
   faExclamationTriangle,
   faFile,
+  faFileAlt,
   faFileImage,
   faFilePdf,
   faShieldAlt,
@@ -119,6 +120,7 @@ const Upload: React.FC = () => {
   const [names, setNames] = useState<string[]>([]);
   const [batch, setBatch] = useState<BatchState>({ isAnalyzing: false, totalFiles: 0, completedFiles: 0 });
   const [dragOver, setDragOver] = useState(false);
+  const [isAnalyzed, setIsAnalyzed] = useState(false);
   const [comprehensiveResult, setComprehensiveResult] = useState<any>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -153,12 +155,6 @@ const Upload: React.FC = () => {
     })();
   }, []);
 
-  // Derived counts
-  const counts = useMemo(() => {
-    const img = selected.filter((s) => s.kind === 'image').length;
-    const pdf = selected.filter((s) => s.kind === 'pdf').length;
-    return { img, pdf, total: selected.length };
-  }, [selected]);
 
   /* ------------- Select & Remove ------------- */
   const onPickClick = () => inputRef.current?.click();
@@ -206,6 +202,18 @@ const Upload: React.FC = () => {
     setItems((prev) => prev.filter((x) => x.id !== id));
   };
 
+  const resetPage = () => {
+    // Clear all selected files and revoke object URLs
+    selected.forEach(item => {
+      if (item.preview) URL.revokeObjectURL(item.preview);
+    });
+    setSelected([]);
+    setItems([]);
+    setAnalysisTitle('');
+    setBatch({ isAnalyzing: false, totalFiles: 0, completedFiles: 0 });
+    setIsAnalyzed(false);
+  };
+
   /* ------------- Analyze Button ------------- */
   const onAnalyze = async () => {
     if (selected.length === 0) {
@@ -213,7 +221,7 @@ const Upload: React.FC = () => {
       return;
     }
     if (!analysisTitle.trim()) {
-      toast.info('Please enter an Analysis Title.');
+      toast.info('Please enter an Claim Title.');
       return;
     }
     if (names.includes(analysisTitle)) {
@@ -222,32 +230,52 @@ const Upload: React.FC = () => {
     }
     
     // Prepare UI state
-    setItems(
-      selected.map<ProcessedItem>((s) =>
-        s.kind === 'image'
-          ? { id: s.id, file: s.file, kind: 'image', status: 'uploading', progress: 0 }
-          : { id: s.id, file: s.file, kind: 'pdf', status: 'uploading', progress: 0 }
-      )
+    setIsAnalyzed(true);
+    
+    // If this is a new analysis (not adding to existing), reset items
+    // If this is adding to existing analysis, append new items
+    const newItems = selected.map<ProcessedItem>((s) =>
+      s.kind === 'image'
+        ? { id: s.id, file: s.file, kind: 'image', status: 'uploading', progress: 0 }
+        : { id: s.id, file: s.file, kind: 'pdf', status: 'uploading', progress: 0 }
     );
-    setBatch({ isAnalyzing: true, totalFiles: selected.length, completedFiles: 0, currentFile: undefined });
-
-    // Create analysis metadata shell (image table reuse – only images will be inserted below)
-    const metaInit = await saveAnalysisMetadata({
-      analysis_name: analysisTitle,
-      total_files: selected.length,
-      completed_files: 0,
-      fraud_detected_count: 0,
-      total_claim_amount: 0,
-      total_cost: 0,
-      file_urls: [],
-    } as AnalysisMetadata);
-    if (!metaInit.success) {
-      toast.error(metaInit.error || 'Failed to create analysis record');
-      setBatch((b) => ({ ...b, isAnalyzing: false }));
-      return;
+    
+    if (items.length === 0) {
+      // New analysis
+      setItems(newItems);
+      setBatch({ isAnalyzing: true, totalFiles: selected.length, completedFiles: 0, currentFile: undefined });
+    } else {
+      // Adding to existing analysis
+      setItems(prev => [...prev, ...newItems]);
+      setBatch(prev => ({ 
+        isAnalyzing: true, 
+        totalFiles: prev.totalFiles + selected.length, 
+        completedFiles: prev.completedFiles, 
+        currentFile: undefined 
+      }));
     }
 
-    // Process sequentially (simple UI)
+    // Create analysis metadata shell (only for new analysis)
+    let metaInit;
+    if (items.length === 0) {
+      // New analysis - create metadata
+      metaInit = await saveAnalysisMetadata({
+        analysis_name: analysisTitle,
+        total_files: selected.length,
+        completed_files: 0,
+        fraud_detected_count: 0,
+        total_claim_amount: 0,
+        total_cost: 0,
+        file_urls: [],
+      } as AnalysisMetadata);
+      if (!metaInit.success) {
+        toast.error(metaInit.error || 'Failed to create analysis record');
+        setBatch((b) => ({ ...b, isAnalyzing: false }));
+        return;
+      }
+    }
+
+    // Process sequentially (simple UI) - only process newly selected files
     const resultsForDB: ImageAnalysis[] = [];
     let fraudDetectedCount = 0;  // count both images+pdf
     let totalCost = 0;           // image fraud "cost" (demo) + pdf ClaimAmount for frauds
@@ -258,6 +286,7 @@ const Upload: React.FC = () => {
     const completedImageAnalysis: any[] = [];
     const completedDocumentAnalysis: any[] = [];
 
+    // Only process the newly selected files
     for (const s of selected) {
       setBatch((b) => ({ ...b, currentFile: s.file.name }));
 
@@ -415,9 +444,9 @@ const Upload: React.FC = () => {
     // Update analysis metadata totals
     const meta: AnalysisMetadata = {
       analysis_name: analysisTitle,
-      total_files: selected.length,
-      completed_files: completed,
-      fraud_detected_count: fraudDetectedCount,
+      total_files: batch.totalFiles, // Use the total files count from batch
+      completed_files: batch.completedFiles + completed, // Add to existing completed count
+      fraud_detected_count: fraudDetectedCount, // This will be updated with existing + new
       total_claim_amount: Math.round(totalClaimAmount * 100) / 100,
       total_cost: Math.round(totalCost * 100) / 100,
       file_urls: resultsForDB.map((r) => r.file_url).filter(Boolean),
@@ -465,6 +494,9 @@ const Upload: React.FC = () => {
     // refresh global stats
     refreshStats();
     
+    // Clear selected files after processing
+    setSelected([]);
+    
     setBatch((b) => ({ ...b, isAnalyzing: false, currentFile: undefined }));
     toast.success('Analysis complete!');
   };
@@ -475,27 +507,21 @@ const Upload: React.FC = () => {
 
   const cardTitle = (
     <div className="flex items-center mb-6">
-      {!batch.isAnalyzing && (
-            <button 
-              className="mr-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              onClick={() => navigate('/dashboard')}
-            >
-              <FontAwesomeIcon icon={faArrowLeft} className="text-gray-600" />
-            </button>
-      )}
       <div className="flex items-center">
-        <FontAwesomeIcon icon={faShieldAlt} className="text-2xl text-blue-600 mr-3" />
-        <h2 className="text-2xl font-semibold text-gray-900">Upload & Analyze (Images + PDFs)</h2>
-            </div>
-          </div>
+        <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-2xl text-blue-600 mr-3" />
+        <h2 className="text-2xl font-semibold text-gray-900">Upload Vehicle Damage Images</h2>
+      </div>
+    </div>
   );
 
   return (
     <div className="p-6">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-full mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">AI Fraud Detection</h1>
+          <div className="flex items-center mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">AI Fraud Detection</h1>
+          </div>
           <p className="text-gray-600">Upload vehicle damage images and/or PDF claim documents. Analyze together with one click.</p>
         </div>
 
@@ -503,194 +529,386 @@ const Upload: React.FC = () => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
           {cardTitle}
 
-          {/* Dropzone */}
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 transition-colors duration-200 cursor-pointer ${
-              dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
-            }`}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            onClick={onPickClick}
-            >
-                <div className="text-center">
-                  <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-6">
-                    <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-3xl text-blue-600" />
-                  </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Drop Images/PDFs here, or click to browse
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Selected: <span className="font-medium">{counts.total}</span> files
-                &nbsp; (Images: {counts.img} · PDFs: {counts.pdf})
-                  </p>
-                  <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 mx-auto transition-colors">
-                    <FontAwesomeIcon icon={faFile} />
-                    <span>Browse Files</span>
-                  </button>
-              <p className="text-sm text-gray-500 mt-3">Supports: JPG/PNG, PDF • Max size depends on backend</p>
-                </div>
-            <input
-              ref={inputRef}
-              type="file"
-              multiple
-              accept="image/*,.pdf,application/pdf"
-              onChange={onInputChange}
-              className="hidden"
-            />
-              </div>
-
-          {/* Selected list */}
-          {selected.length > 0 && (
-            <div className="mt-6">
-              <h4 className="text-sm font-semibold text-gray-700 mb-3">Selected Files</h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {selected.map((s) => (
-                  <div key={s.id} className="relative bg-gray-50 rounded-lg p-2 border border-gray-200">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-200 flex items-center justify-center">
-                        {s.kind === 'image' ? (
-                          s.preview ? <img src={s.preview} alt={s.file.name} className="w-full h-full object-cover" /> :
-                          <FontAwesomeIcon icon={faFileImage} className="text-gray-500" />
-                        ) : (
-                          <FontAwesomeIcon icon={faFilePdf} className="text-red-500 text-lg" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate" title={s.file.name}>
-                          {s.file.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                          {s.kind.toUpperCase()} • {bytesToMB(s.file.size)} MB
-                      </p>
-                      </div>
+          {/* Dropzone - only show when no files selected and not analyzed */}
+          {selected.length === 0 && !isAnalyzed && (
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 transition-colors duration-200 cursor-pointer ${
+                dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+              }`}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              onClick={onPickClick}
+              >
+                  <div className="text-center">
+                    <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-6">
+                      <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-3xl text-blue-600" />
                     </div>
-                      <button
-                      onClick={() => remove(s.id)}
-                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
-                      title="Remove"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  Drop Images/PDFs here, or click to browse
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Select multiple images for batch processing
+                    </p>
+                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 mx-auto transition-colors">
+                      <FontAwesomeIcon icon={faFile} />
+                      <span>Browse Files</span>
+                    </button>
+                <p className="text-sm text-gray-500 mt-3">Supports: JPG/PNG, PDF • Max size depends on backend</p>
                   </div>
+              <input
+                ref={inputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,application/pdf"
+                onChange={onInputChange}
+                className="hidden"
+              />
                 </div>
           )}
 
-          {/* Analysis Title */}
-          <div className="mt-6">
-                  <label htmlFor="analysisTitle" className="block text-sm font-medium text-gray-700 mb-2">
-                    Analysis Title
-                  </label>
-                  <input
-                    id="analysisTitle"
-                    type="text"
-                    value={analysisTitle}
-                    onChange={(e) => setAnalysisTitle(e.target.value)}
-              placeholder="e.g., Claim Case Bundle - Sep 2025"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          {/* Selected files cards - hide only after analysis is complete */}
+          {selected.length > 0 && !items.some((i) => i.status === 'completed') && (
+            <div className="mt-6">
+              <div className="flex flex-wrap gap-4">
+                {selected.map((s) => (
+                  <div key={s.id} className="relative bg-white rounded-lg border border-gray-200 p-4 w-48">
+                    <div className="aspect-square w-full rounded-lg overflow-hidden bg-gray-100 mb-3">
+                      {s.kind === 'image' && s.preview ? (
+                        <img src={s.preview} alt={s.file.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          {s.kind === 'image' ? (
+                            <FontAwesomeIcon icon={faFileImage} className="text-gray-400 text-2xl" />
+                          ) : (
+                            <FontAwesomeIcon icon={faFilePdf} className="text-red-400 text-2xl" />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 truncate mb-1" title={s.file.name}>
+                      {s.file.name}
+                    </p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      {bytesToMB(s.file.size)} MB
+                    </p>
+                    <button
+                      onClick={() => remove(s.id)}
+                      className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                      title="Remove"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                
+                {/* Upload More Button Card */}
+                <div 
+                  className="relative bg-white rounded-lg border-2 border-dashed border-gray-300 p-4 w-48 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                  onClick={onPickClick}
+                >
+                  <div className="aspect-square w-full rounded-lg overflow-hidden bg-gray-50 mb-3 flex items-center justify-center">
+                    <div className="text-center">
+                      <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-gray-400 text-3xl mb-2" />
+                      <p className="text-xs text-gray-500">Add More</p>
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium text-gray-900 mb-1">Upload More Files</p>
+                  <p className="text-xs text-gray-500">Click to add more images or PDFs</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Claim Title - hide only after analysis is complete */}
+          {!items.some((i) => i.status === 'completed') && (
+            <div className="mt-6">
+              <label htmlFor="analysisTitle" className="block text-sm font-medium text-gray-700 mb-2">
+                Claim Title
+              </label>
+              <input
+                id="analysisTitle"
+                type="text"
+                value={analysisTitle}
+                onChange={(e) => setAnalysisTitle(e.target.value)}
+                placeholder="e.g., Claim Case Bundle - Sep 2025"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          )}
+                
+          {/* Single Analyze button - only show when not analyzed and not currently analyzing */}
+          {!isAnalyzed && !batch.isAnalyzing && (
+            <div className="mt-6 text-center">
+              <button
+                onClick={onAnalyze}
+                disabled={selected.length === 0}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-8 py-4 rounded-lg inline-flex items-center space-x-3 transition-colors font-semibold"
+              >
+                <FontAwesomeIcon icon={faShieldAlt} />
+                <span>Analyze</span>
+              </button>
+            </div>
+          )}
+
+          {/* Start Analysis button - show when files are added during analysis */}
+          {isAnalyzed && !batch.isAnalyzing && selected.length > 0 && (
+            <div className="mt-6 text-center">
+              <button
+                onClick={onAnalyze}
+                disabled={selected.length === 0}
+                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-8 py-4 rounded-lg inline-flex items-center space-x-3 transition-colors font-semibold"
+              >
+                <FontAwesomeIcon icon={faShieldAlt} />
+                <span>Start Analysis</span>
+              </button>
+            </div>
+          )}
+            
+          {/* Batch Analysis Progress */}
+          {batch.isAnalyzing && (
+            <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
+              {/* Header */}
+              <div className="flex items-center mb-4">
+                <FontAwesomeIcon icon={faShieldAlt} className="text-blue-600 mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900">Batch Analysis Progress</h3>
+              </div>
+              
+              {/* Summary */}
+              <div className="mb-4">
+                <p className="text-sm text-gray-600">
+                  Processing <span className="font-medium">{batch.totalFiles}</span> images • 
+                  <span className="text-green-600 font-medium ml-1">{batch.completedFiles} completed</span>
+                </p>
+              </div>
+
+              {/* Overall Progress */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+                  <span className="text-sm font-medium text-gray-900">{overallProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${overallProgress}%` }}
                   />
                 </div>
-                
-          {/* Single Analyze button */}
-          <div className="mt-6 text-center">
-                  <button
-              onClick={onAnalyze}
-              disabled={batch.isAnalyzing || selected.length === 0}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-8 py-4 rounded-lg inline-flex items-center space-x-3 transition-colors"
-            >
-              {batch.isAnalyzing ? (
-                <>
-                  <FontAwesomeIcon icon={faSpinner} className="animate-spin" />
-                  <span>Analyzing {batch.completedFiles}/{batch.totalFiles}...</span>
-                </>
-              ) : (
-                <>
-                    <FontAwesomeIcon icon={faShieldAlt} />
-                  <span>Analyze {selected.length} File(s)</span>
-                </>
-              )}
-                  </button>
-            </div>
-            
-          {/* Batch progress */}
-          {batch.isAnalyzing && (
-            <div className="mt-8">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">
-                  Processing <span className="font-medium">{batch.totalFiles}</span> file(s)
-                  {batch.currentFile ? ` • Current: ${batch.currentFile}` : ''}
-                </span>
-                <span className="text-sm text-blue-700 font-medium">{overallProgress}%</span>
-          </div>
-              <div className="w-full bg-gray-200 rounded-full h-3">
-                <div 
-                  className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${overallProgress}%` }}
-                />
-            </div>
+              </div>
 
-              {/* Per-item progress */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-                {items.map((it) => (
-                  <div key={it.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        {it.kind === 'image' ? (
-                          <FontAwesomeIcon icon={faFileImage} className="text-gray-500" />
-                        ) : (
-                          <FontAwesomeIcon icon={faFilePdf} className="text-red-500" />
-                        )}
-                        <span className="text-sm font-medium text-gray-900 truncate" title={it.file.name}>
-                          {it.file.name}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        {it.status === 'completed' ? (
-                          <FontAwesomeIcon icon={faCheckCircle} className="text-green-600" />
-                        ) : it.status === 'error' ? (
-                          <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600" />
-                        ) : (
-                          <FontAwesomeIcon icon={faSpinner} className="text-blue-600 animate-spin" />
-                        )}
+              {/* Individual File Progress Cards */}
+              <div className="space-y-3">
+                {items.map((it) => {
+                  const isAnalyzing = it.status === 'analyzing' || it.status === 'uploading';
+                  const isPending = it.status === 'uploading' && (it.progress || 0) < 50;
+                  const isCompleted = it.status === 'completed';
+                  const isError = it.status === 'error';
+                  
+                  return (
+                    <div 
+                      key={it.id} 
+                      className={`border rounded-lg p-4 ${
+                        isAnalyzing ? 'border-blue-200 bg-blue-50' : 
+                        isCompleted ? 'border-green-200 bg-green-50' :
+                        isError ? 'border-red-200 bg-red-50' :
+                        'border-gray-200 bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        {/* Thumbnail */}
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-200 mr-4 flex-shrink-0">
+                          {it.kind === 'image' && it.url ? (
+                            <img src={it.url} alt={it.file.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              {it.kind === 'image' ? (
+                                <FontAwesomeIcon icon={faFileImage} className="text-gray-400" />
+                              ) : (
+                                <FontAwesomeIcon icon={faFilePdf} className="text-red-400" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* File Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm font-medium text-gray-900 truncate" title={it.file.name}>
+                              {it.file.name}
+                            </p>
+                            <div className="flex items-center space-x-2">
+                              {isAnalyzing && (
+                                <FontAwesomeIcon icon={faSpinner} className="text-gray-800 animate-spin" />
+                              )}
+                              {isPending && (
+                                <FontAwesomeIcon icon={faSpinner} className="text-gray-400" />
+                              )}
+                              {isCompleted && (
+                                <FontAwesomeIcon icon={faCheckCircle} className="text-green-600" />
+                              )}
+                              {isError && (
+                                <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600" />
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Status */}
+                          <div className="mb-2">
+                            {isAnalyzing && (
+                              <span className="text-sm text-gray-800 font-medium">Analyzing</span>
+                            )}
+                            {isCompleted && (
+                              <span className="text-sm text-green-600 font-medium">Completed</span>
+                            )}
+                            {isError && (
+                              <span className="text-sm text-red-600 font-medium">Error</span>
+                            )}
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 mr-3">
+                              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                <div
+                                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                                    isCompleted ? 'bg-green-600' : 
+                                    isError ? 'bg-red-600' : 'bg-blue-600'
+                                  }`}
+                                  style={{ width: `${it.progress || 0}%` }}
+                                />
+                              </div>
+                            </div>
+                            <span className="text-xs text-gray-500 font-medium">
+                              {it.progress || 0}%
+                            </span>
+                          </div>
+                          
+                          {/* Error Message */}
+                          {isError && it.error && (
+                            <p className="text-xs text-red-600 mt-1">{it.error}</p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    
-                    {it.status !== 'completed' && (
-                      <div className="mt-2">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${it.progress || 0}%` }}
-                          />
-                        </div>
-                        <div className="text-right text-xs text-gray-500 mt-1">{it.progress || 0}%</div>
-                      </div>
-                    )}
-
-                    {it.status === 'error' && (
-                      <p className="mt-2 text-xs text-red-600">{it.error}</p>
-                    )}
-                </div>
-              ))}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Results Display */}
+          {/* Post-Analysis Options */}
           {!batch.isAnalyzing && items.some((i) => i.status === 'completed') && (
-          <ResultsDisplay 
+            <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6 mb-6 shadow-sm">
+              <div className="text-center">
+                <div className="flex flex-row justify-center mb-4 w-full">
+                  <FontAwesomeIcon icon={faShieldAlt} className="text-blue-600 text-4xl bg-blue-50 rounded-xl p-2" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Analysis Complete!</h3>
+              </div>
+            </div>
+          )}
+
+        {/* Post-Analysis Dashboard Layout */}
+        {!batch.isAnalyzing && items.some((i) => i.status === 'completed') && (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Total Analyzed */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Analyzed</p>
+                    <p className="text-2xl font-bold text-gray-900">{items.filter(i => i.status === 'completed').length}</p>
+                  </div>
+                  <div className="p-3 bg-blue-100 rounded-lg">
+                    <FontAwesomeIcon icon={faFileAlt} className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Fraudulent */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Fraudulent</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {items.filter(i => i.status === 'completed' && i.kind === 'image' && (i as ProcessedImageItem).analysis?.isFraudulent).length}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-red-100 rounded-lg">
+                    <FontAwesomeIcon icon={faExclamationTriangle} className="w-6 h-6 text-red-600" />
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Generated */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">AI Generated</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {items.filter(i => i.status === 'completed' && i.kind === 'image' && (i as ProcessedImageItem).analysis?.aiScore && parseFloat((i as ProcessedImageItem).analysis!.aiScore) > 0.7).length}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-red-100 rounded-lg">
+                    <FontAwesomeIcon icon={faExclamationTriangle} className="w-6 h-6 text-red-600" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Potential Savings */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Potential Savings</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      ${items.filter(i => i.status === 'completed' && i.kind === 'image' && (i as ProcessedImageItem).analysis?.isFraudulent)
+                        .reduce((sum, i) => sum + ((i as ProcessedImageItem).cost || 0), 0).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <FontAwesomeIcon icon={faDollarSign} className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Success Banner */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-blue-100 rounded-lg">
+                    <FontAwesomeIcon icon={faShieldAlt} className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Case Created Successfully</h3>
+                    <p className="text-gray-600">A new case has been created with {items.filter(i => i.status === 'completed').length} analyzed images.</p>
+                  </div>
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={resetPage}
+                    className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faArrowUpFromBracket} className="mr-2" />
+                    Analyze New Batch
+                  </button>
+                  <button
+                    onClick={() => navigate(`/cases/${encodeURIComponent(analysisTitle)}`)}
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faFileAlt} className="mr-2" />
+                    Open Case Details
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Results Display */}
+            <ResultsDisplay 
               files={convertToUploadedFiles(items)}
-              actionButton={
-              <button
-                  onClick={() => navigate('/dashboard')}
-                  className="inline-flex items-center px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                  Back to Dashboard
-              </button>
-              }
-          />
+            />
+          </div>
         )}
 
         {/* Comprehensive Analysis Results */}

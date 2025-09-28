@@ -53,8 +53,8 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <FontAwesomeIcon icon={faShieldAlt} className="text-white text-lg" />
+              <div className="w-full h-full max-w-25 max-h-25 rounded-xl flex items-center justify-center">
+                <img src="/logo.png" alt="iSpy" className="w-full h-full object-cover rounded-xl p-2" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">iSpy</h1>

@@ -19,6 +19,7 @@ const Cases: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [costSort, setCostSort] = useState('none');
 
   useEffect(() => {
     loadCases();
@@ -102,10 +103,20 @@ const Cases: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
+  // Sort cases by cost if sorting is enabled
+  const sortedCases = [...filteredCases].sort((a, b) => {
+    if (costSort === 'greatest-first') {
+      return b.total_cost - a.total_cost;
+    } else if (costSort === 'greatest-last') {
+      return a.total_cost - b.total_cost;
+    }
+    return 0; // No sorting
+  });
+
   if (loading) {
     return (
       <div className="p-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-full mx-auto">
           <div className="flex items-center justify-center h-64">
             <FontAwesomeIcon icon={faSpinner} className="text-4xl text-blue-600 animate-spin" />
           </div>
@@ -116,7 +127,7 @@ const Cases: React.FC = () => {
 
   return (
     <div className="p-6">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-full mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Case Review</h1>
           <p className="text-gray-600">
@@ -157,24 +168,33 @@ const Cases: React.FC = () => {
                 <option value="medium-risk">Medium Risk Cases</option>
                 <option value="low-risk">Low Risk Cases</option>
               </select>
+              <select
+                value={costSort}
+                onChange={(e) => setCostSort(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="none">No Cost Sorting</option>
+                <option value="greatest-first">Greatest First</option>
+                <option value="greatest-last">Greatest Last</option>
+              </select>
             </div>
           </div>
         </div>
 
         {/* Cases Cards */}
         <div className="space-y-4">
-          {filteredCases.length === 0 ? (
+          {sortedCases.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
               <FontAwesomeIcon icon={faFolderOpen} className="text-4xl text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No cases found</h3>
               <p className="text-gray-600">
-                {searchTerm || statusFilter !== 'all' 
+                {searchTerm || statusFilter !== 'all'
                   ? 'Try adjusting your search or filter criteria.'
                   : 'No analysis cases have been created yet.'}
               </p>
             </div>
           ) : (
-            filteredCases.map((caseItem) => {
+            sortedCases.map((caseItem) => {
               const statusInfo = getStatusInfo(caseItem.fraud_detected_count, caseItem.total_files);
               const fraudRate = (caseItem.fraud_detected_count / caseItem.total_files) * 100;
               const completionRate = (caseItem.completed_files / caseItem.total_files) * 100;
@@ -208,9 +228,6 @@ const Cases: React.FC = () => {
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.statusColor}`}>
                           {statusInfo.status}
                         </span>
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
-                          {Math.round(fraudRate)}% detection rate
-                        </span>
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                           {Math.round(completionRate)}% complete
                         </span>
@@ -233,20 +250,6 @@ const Cases: React.FC = () => {
                         <div>
                           <p className="text-sm text-gray-600">Total Claim Cost</p>
                           <p className="text-2xl font-bold text-gray-900">{formatCurrency(caseItem.total_cost)}</p>
-                        </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="mb-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-700">Analysis Progress</span>
-                          <span className="text-sm text-gray-500">{Math.round(completionRate)}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${completionRate}%` }}
-                          ></div>
                         </div>
                       </div>
 
