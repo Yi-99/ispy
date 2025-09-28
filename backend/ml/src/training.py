@@ -223,9 +223,9 @@ class EnhancedFraudTrainer:
             probabilities = F.softmax(output, dim=1)
             predictions = output.argmax(dim=1)
             
-            all_predictions.extend(predictions.cpu().numpy())
-            all_targets.extend(target.cpu().numpy())
-            all_probabilities.extend(probabilities[:, 1].cpu().numpy())
+            all_predictions.extend(predictions.cpu().detach().numpy())
+            all_targets.extend(target.cpu().detach().numpy())
+            all_probabilities.extend(probabilities[:, 1].cpu().detach().numpy())
             
             # Update progress bar with fraud-specific metrics
             if batch_idx % 10 == 0:
@@ -263,9 +263,9 @@ class EnhancedFraudTrainer:
                 probabilities = F.softmax(output, dim=1)
                 predictions = output.argmax(dim=1)
                 
-                all_predictions.extend(predictions.cpu().numpy())
-                all_targets.extend(target.cpu().numpy())
-                all_probabilities.extend(probabilities[:, 1].cpu().numpy())
+                all_predictions.extend(predictions.cpu().detach().numpy())
+                all_targets.extend(target.cpu().detach().numpy())
+                all_probabilities.extend(probabilities[:, 1].cpu().detach().numpy())
         
         avg_loss = total_loss / len(val_loader)
         metrics = self._calculate_fraud_metrics(all_targets, all_predictions, all_probabilities)
@@ -436,8 +436,8 @@ class EnhancedFraudTrainer:
                 output = self.model(data)
                 probabilities = F.softmax(output, dim=1)
                 
-                all_probabilities.extend(probabilities[:, 1].cpu().numpy())
-                all_targets.extend(target.cpu().numpy())
+                all_probabilities.extend(probabilities[:, 1].cpu().detach().numpy())
+                all_targets.extend(target.cpu().detach().numpy())
         
         all_probabilities = np.array(all_probabilities)
         all_targets = np.array(all_targets)
