@@ -9,7 +9,7 @@ async function getGenAI() {
   if (!process.env.GOOGLE_API_KEY) {
     throw new Error('Missing GOOGLE_API_KEY');
   }
-  _genAICache = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || 'AIzaSyByIXKwtmYA7YtKv-ewU1HI8C0FK08lXAM');
+  _genAICache = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
   return _genAICache;
 }
 
