@@ -4,6 +4,7 @@ import Sidenav from './components/Sidenav';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
 import Cases from './pages/Cases';
+import { StatsProvider } from './contexts/StatsContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBars } from '@fortawesome/free-solid-svg-icons';
 import './App.css';
@@ -60,9 +61,11 @@ const AppLayout: React.FC = () => {
 
 function App() {
   return (
-    <Router>
-      <AppLayout />
-    </Router>
+    <StatsProvider>
+      <Router>
+        <AppLayout />
+      </Router>
+    </StatsProvider>
   );
 }
 

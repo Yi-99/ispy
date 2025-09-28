@@ -10,32 +10,41 @@ import {
 	faChartLine,
 	faArrowUp
 } from '@fortawesome/free-solid-svg-icons';
+import { useStats } from '../contexts/StatsContext';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard: React.FC = () => {
+	const { casesAnalyzed, fraudDetected, moneySaved } = useStats();
+		const navigate = useNavigate();
+	const fraudRate = casesAnalyzed > 0 ? ((fraudDetected / casesAnalyzed) * 100).toFixed(1) : '0.0';
+	
 	const metrics = [
 		{
 			title: 'Total Cases Analyzed',
-			value: '5',
+			value: casesAnalyzed.toString(),
 			change: '+12% this month',
 			changeType: 'positive',
 			icon: faFileAlt,
-			iconColor: 'text-blue-600'
+			iconColor: 'text-blue-600',
+			color: 'bg-blue-100',
 		},
 		{
 			title: 'Fraudulent Cases Detected',
-			value: '2',
-			change: '40.0% fraud rate',
+			value: fraudDetected.toString(),
+			change: `${fraudRate}% fraud rate`,
 			changeType: 'positive',
 			icon: faExclamationTriangle,
-			iconColor: 'text-red-600'
+			iconColor: 'text-red-600',
+			color: 'bg-red-100',
 		},
 		{
 			title: 'Money Saved',
-			value: '$60,000',
+			value: `$${moneySaved.toLocaleString()}`,
 			change: '+$50K this month',
 			changeType: 'positive',
 			icon: faDollarSign,
-			iconColor: 'text-green-600'
+			iconColor: 'text-green-600',
+			color: 'bg-green-100',
 		},
 		{
 			title: 'Avg Processing Time',
@@ -43,7 +52,8 @@ const Dashboard: React.FC = () => {
 			change: '2.3s improvement',
 			changeType: 'positive',
 			icon: faClock,
-			iconColor: 'text-purple-600'
+			iconColor: 'text-purple-600',
+			color: 'bg-purple-100',
 		},
 		{
 			title: 'Suspicious Cases',
@@ -51,7 +61,8 @@ const Dashboard: React.FC = () => {
 			change: 'Pending review',
 			changeType: 'neutral',
 			icon: faShieldAlt,
-			iconColor: 'text-orange-600'
+			iconColor: 'text-orange-600',
+			color: 'bg-orange-100',
 		},
 		{
 			title: 'Detection Accuracy',
@@ -59,7 +70,8 @@ const Dashboard: React.FC = () => {
 			change: '+2.1% vs last month',
 			changeType: 'positive',
 			icon: faChartLine,
-			iconColor: 'text-blue-600'
+			iconColor: 'text-blue-600',
+			color: 'bg-blue-100',
 		}
 	];
 
@@ -70,7 +82,8 @@ const Dashboard: React.FC = () => {
 			severity: 'HIGH',
 			severityColor: 'bg-red-100 text-red-800',
 			icon: faExclamationTriangle,
-			iconColor: 'text-red-600'
+			iconColor: 'text-red-600',
+			color: 'bg-red-100',
 		},
 		{
 			title: 'High-Value Suspicious Claims',
@@ -78,7 +91,8 @@ const Dashboard: React.FC = () => {
 			severity: 'MEDIUM',
 			severityColor: 'bg-yellow-100 text-yellow-800',
 			icon: faShieldAlt,
-			iconColor: 'text-orange-600'
+			iconColor: 'text-orange-600',
+			color: 'bg-orange-100',
 		},
 		{
 			title: 'Elevated Fraud Rate',
@@ -86,7 +100,8 @@ const Dashboard: React.FC = () => {
 			severity: 'HIGH',
 			severityColor: 'bg-red-100 text-red-800',
 			icon: faChartLine,
-			iconColor: 'text-red-600'
+			iconColor: 'text-red-600',
+			color: 'bg-red-100',
 		}
 	];
 
@@ -100,7 +115,10 @@ const Dashboard: React.FC = () => {
 						Overview of Vehicle Damage Claim AI Fraud Detection monitoring and analysis
 					</p>
 				</div>
-				<button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium flex items-center space-x-2 transition-colors duration-200">
+				<button 
+					className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium flex items-center space-x-2 transition-colors duration-200"
+					onClick={() => navigate('/upload')}
+				>
 					<FontAwesomeIcon icon={faUpload} />
 					<span>Analyze New Image</span>
 				</button>
@@ -165,13 +183,13 @@ const Dashboard: React.FC = () => {
 						<div className="grid grid-cols-2 gap-4">
 							<div className="text-center">
 								<div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-									<span className="text-2xl font-bold text-green-600">3</span>
+									<span className="text-2xl font-bold text-green-600">{casesAnalyzed - fraudDetected}</span>
 								</div>
 								<p className="text-sm text-gray-600">Legitimate</p>
 							</div>
 							<div className="text-center">
 								<div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-2">
-									<span className="text-2xl font-bold text-red-600">2</span>
+									<span className="text-2xl font-bold text-red-600">{fraudDetected}</span>
 								</div>
 								<p className="text-sm text-gray-600">Fraudulent</p>
 							</div>

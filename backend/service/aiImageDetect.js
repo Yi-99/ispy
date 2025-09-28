@@ -31,91 +31,6 @@ console.log('HF_API_KEY:', process.env.HF_API_KEY);
 const client_hf = new InferenceClient(process.env.HF_API_KEY);
 
 /**
- * Detect objects in an image using Hugging Face model
- * 
- * @param {string} imagePath - Path to the image file
- * @returns {Promise<string>} Formatted detection results
- */
-async function detectImage(imagePath) {
-    try {
-        // Check if file exists
-        if (!fs.existsSync(imagePath)) {
-            throw new Error(`Image file not found: ${imagePath}`);
-        }
-
-        // Read the image file
-        const imageBuffer = fs.readFileSync(imagePath);
-        
-        // Create Blob with proper MIME type
-        const imageBlob = new Blob([imageBuffer], { 
-            type: 'image/jpeg' // Default, could be detected from file extension
-        });
-        
-        console.log('✅ Blob created for local file:');
-        console.log('  - Size:', imageBlob.size, 'bytes');
-        console.log('  - Type:', imageBlob.type);
-        
-        // Perform image classification using Hugging Face model
-        const output = await client_hf.imageClassification({
-            model: process.env.HF_AI_DETECTOR_MODEL_NAME,
-            data: imageBlob
-        });
-
-        // Format the output to a string
-        const formattedParts = output.map(item => 
-            `${item.label} score = ${item.score}`
-        );
-        const finalString = formattedParts.join(", ");
-
-        console.log(finalString);
-        return finalString;
-    } catch (error) {
-        console.error(`Error in detectImage: ${error.message}`);
-        return `Error: ${error.message}`;
-    }
-}
-
-/**
- * Detect objects from image URL using Hugging Face model
- * 
- * @param {string} imageUrl - URL of the image
- * @returns {Promise<string>} Formatted detection results
- */
-async function detectImageFromUrl(imageUrl) {
-    try {
-        // Load image with content type info
-        const { buffer: imageBuffer, contentType } = await loadImageFromUrl(imageUrl);
-        
-        // Create Blob with proper MIME type
-        const imageBlob = new Blob([imageBuffer], { 
-            type: contentType 
-        });
-        
-        console.log('✅ Blob created for URL image:');
-        console.log('  - Size:', imageBlob.size, 'bytes');
-        console.log('  - Type:', imageBlob.type);
-        
-        // Perform image classification using Hugging Face model
-        const output = await client_hf.imageClassification({
-            model: process.env.HF_AI_DETECTOR_MODEL_NAME,
-            data: imageBlob
-        });
-
-        // Format the output to a string
-        const formattedParts = output.map(item => 
-            `${item.label} score = ${item.score}`
-        );
-        const finalString = formattedParts.join(", ");
-
-        console.log(finalString);
-        return finalString;
-    } catch (error) {
-        console.error(`Error in detectImageFromUrl: ${error.message}`);
-        return `Error: ${error.message}`;
-    }
-}
-
-/**
  * Load image from URL and return as buffer with content type info
  * 
  * @param {string} imageUrl - URL of the image
@@ -134,10 +49,6 @@ async function loadImageFromUrl(imageUrl) {
         
         const imageBuffer = Buffer.from(response.data);
         const contentType = response.headers['content-type'] || 'image/jpeg';
-        
-        console.log('✅ Image loaded successfully:');
-        console.log('  - Size:', imageBuffer.length, 'bytes');
-        console.log('  - Content-Type:', contentType);
         
         // Validate it's actually an image
         if (!contentType.startsWith('image/')) {
@@ -198,11 +109,10 @@ async function analyzeForFraud(imageUrl) {
 
         console.log('output from client_hf:', output);
 
-
-
         // Analyze results for fraud indicators
         const fraudIndicators = [];
         let fraudScore = 0;
+        let aiScore = 0;
         let isFraudulent = false;
 
         // Check for specific fraud indicators in the classification results
@@ -210,46 +120,51 @@ async function analyzeForFraud(imageUrl) {
             const label = item.label.toLowerCase();
             const score = item.score;
 
-            // Look for fraud-related keywords
+            // Look for AI-generated indicators
             if (label.includes('artificial')) {
-                fraudIndicators.push(`${label} (${(score * 100).toFixed(1)}%)`);
-                fraudScore += score * 0.8;
-            }
-            
-            if (label.includes('real')) {
-                fraudIndicators.push(`${label} (${(score * 100).toFixed(1)}%)`);
-                fraudScore += score * 0.6;
+                fraudIndicators.push(`${label} (${((score * 100) / 100).toFixed(1)}%)`);
+                aiScore = score;
             }
         });
 
-        // Determine if fraudulent based on score
-        isFraudulent = fraudScore > 0.5;
+        // Determine if AI-generated based on aiScore
+        const isAiGenerated = aiScore > 0.5;
         
-        // Determine risk level
+        // Generate analysis text
+        let aiAnalysis = '';
+        if (isAiGenerated) {
+            aiAnalysis = `Multiple indicators of potential AI manipulation or generation detected. AI Score: ${(Math.floor(aiScore * 100) / 100).toFixed(2)}.`;
+        } else {
+            aiAnalysis = `No significant trace of AI manipulation or generation indicators detected. AI Score: ${(Math.floor(aiScore * 100) / 100).toFixed(2)}. Analysis appears consistent with legitimate damage.`;
+        }
+
+        // Determine if fraudulent based on score
+        isFraudulent = aiScore > 0.75;
+        
+        // Determine risk level based on AI score
         let riskLevel = 'LOW';
-        if (fraudScore > 0.7) {
+        if (aiScore > 0.7) {
             riskLevel = 'HIGH';
-        } else if (fraudScore > 0.4) {
+        } else if (aiScore > 0.4) {
             riskLevel = 'MEDIUM';
         }
 
         // Generate analysis text
-        let analysis = '';
+        let fraudAnalysis = '';
         if (isFraudulent) {
-            analysis = `Multiple indicators of potential fraud detected. Fraud score: ${(fraudScore * 100).toFixed(1)}%. ${fraudIndicators.length > 0 ? 'Detected issues: ' + fraudIndicators.join(', ') : ''}`;
+            fraudAnalysis = `Multiple indicators of potential fraud detected. Fraud score: ${(fraudScore * 100).toFixed(1)}%. ${fraudIndicators.length > 0 ? 'Detected issues: ' + fraudIndicators.join(', ') : ''}`;
         } else {
-            analysis = `No significant fraud indicators detected. Fraud score: ${(fraudScore * 100).toFixed(1)}%. Analysis appears consistent with legitimate damage.`;
+            fraudAnalysis = `No significant fraud indicators detected. Fraud score: ${(fraudScore * 100).toFixed(1)}%. Analysis appears consistent with legitimate damage.`;
         }
-
-        console.log('fraud analysis finished!', analysis);
 
         return {
             isFraudulent,
-            confidence: Math.max(0.1, Math.min(0.99, fraudScore + 0.2)), // Ensure confidence is between 0.1 and 0.99
+            aiAnalysis: aiAnalysis,
+            aiScore: (Math.floor(aiScore * 100) / 100).toFixed(2),
             riskLevel,
-            analysis,
+            fraudAnalysis: fraudAnalysis,
             detectedIssues: fraudIndicators,
-            fraudScore: fraudScore
+            fraudScore: (Math.floor(fraudScore * 100) / 100).toFixed(2)
         };
     } catch (error) {
         console.error(`Error in analyzeForFraud: ${error.message}`);
@@ -266,7 +181,5 @@ async function analyzeForFraud(imageUrl) {
 }
 
 module.exports = {
-    detectImage,
-    detectImageFromUrl,
     analyzeForFraud
 };

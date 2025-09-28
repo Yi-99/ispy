@@ -14,9 +14,11 @@ export interface UploadResult {
 	fileName?: string;
 	data?: {
 		isFraudulent: boolean;
-		confidence: number;
+		aiScore: string;
+		fraudScore: string;
+		aiAnalysis: string;
+		fraudAnalysis: string;
 		riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
-		analysis: string;
 		detectedIssues: string[];
 	};
 }
@@ -25,9 +27,11 @@ export interface AnalysisResult {
 	success: boolean;
 	data?: {
 		isFraudulent: boolean;
-		confidence: number;
+		aiScore: string;
+		fraudScore: string;
+		aiAnalysis: string;
+		fraudAnalysis: string;
 		riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
-		analysis: string;
 		detectedIssues: string[];
 	};
 	error?: string;
@@ -64,32 +68,18 @@ export const uploadImage = async (file: File): Promise<UploadResult> => {
 			.from(STORAGE_BUCKET)
 			.getPublicUrl(`${UPLOAD_FOLDER}/${fileName}`);
 
-		try {
-			const res = await axios.post(`${import.meta.env.VITE_API_URL}/analyze_fraud`, {
-				image_url: urlData.publicUrl
-			});
+		const analysisResult = await analyzeImage(urlData.publicUrl);
 
-			if (res.status === 200) {
-				console.log('fraud analysis results: ', res.data);
-				return {
-					success: true,
-					data: res.data
-				};
-			}
-
+		if (analysisResult.success) {
 			return {
-				success: false,
-				error: res.data.error
+				success: true,
+				url: urlData.publicUrl,
+				fileName: fileName,
+				data: analysisResult.data
 			};
-		} catch (notifyError) {
-			console.error('Failed to receive image analysis results from backend!');
 		}
 
-		return {
-			success: true,
-			url: urlData.publicUrl,
-			fileName: fileName
-		};
+		throw new Error('Analysis failed');
 	} catch (error) {
 		console.error('Upload error:', error);
 		return {
@@ -105,46 +95,21 @@ export const uploadImage = async (file: File): Promise<UploadResult> => {
  */
 export const analyzeImage = async (imageUrl: string): Promise<AnalysisResult> => {
 	try {
-		// Simulate API call delay
-		await new Promise(resolve => setTimeout(resolve, 2000));
-		
-		// Mock analysis results - in a real app, this would be an actual ML API call
-		const mockResults = [
-			{
-				isFraudulent: false,
-				confidence: 0.85,
-				riskLevel: 'LOW' as const,
-				analysis: 'No signs of fraudulent activity detected. Damage appears consistent with reported incident.',
-				detectedIssues: []
-			},
-			{
-				isFraudulent: true,
-				confidence: 0.92,
-				riskLevel: 'HIGH' as const,
-				analysis: 'Multiple indicators of potential fraud detected. Inconsistent damage patterns and suspicious modifications.',
-				detectedIssues: [
-					'Inconsistent damage patterns',
-					'Evidence of photo manipulation',
-					'Multiple damage sources detected'
-				]
-			},
-			{
-				isFraudulent: false,
-				confidence: 0.78,
-				riskLevel: 'MEDIUM' as const,
-				analysis: 'Some inconsistencies detected but within normal parameters. Recommend manual review.',
-				detectedIssues: [
-					'Minor inconsistencies in damage pattern'
-				]
-			}
-		];
+		const res = await axios.post(`${import.meta.env.VITE_API_URL}/analyze_fraud`, {
+			image_url: imageUrl
+		});
 
-		// Randomly select a mock result
-		const randomResult = mockResults[Math.floor(Math.random() * mockResults.length)];
-		
+		if (res.status === 200) {
+			console.log('fraud analysis results: ', res.data);
+			return {
+				success: res.data.success,
+				data: res.data.data
+			};
+		}
+
 		return {
-			success: true,
-			data: randomResult
+			success: false,
+			error: res.data.error
 		};
 	} catch (error) {
 		console.error('Analysis error:', error);

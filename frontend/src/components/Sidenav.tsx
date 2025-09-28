@@ -7,6 +7,7 @@ import {
   faShieldAlt, 
   faTimes
 } from '@fortawesome/free-solid-svg-icons';
+import { useStats } from '../contexts/StatsContext';
 
 interface SidenavProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface SidenavProps {
 }
 
 const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavigate }) => {
+  const { casesAnalyzed, fraudDetected, moneySaved } = useStats();
 
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: faTachometerAlt },
@@ -24,9 +26,9 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
   ];
 
   const quickStats = [
-    { label: 'Cases Analyzed', value: '0', trend: '+12%' },
-    { label: 'Fraud Detected', value: '0', trend: '+5%' },
-    { label: 'Money Saved', value: '$0', trend: '+$50K' },
+    { label: 'Cases Analyzed', value: casesAnalyzed.toString(), trend: '+12%' },
+    { label: 'Fraud Detected', value: fraudDetected.toString(), trend: '+5%' },
+    { label: 'Money Saved', value: `$${moneySaved.toLocaleString()}`, trend: '+$50K' },
   ];
 
   return (
@@ -80,7 +82,7 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
                     className={`
                       w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors duration-200
                       ${currentPage === item.id 
-                        ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700' 
+                        ? 'bg-blue-50 text-blue-700' 
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                       }
                     `}

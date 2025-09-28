@@ -1,16 +1,25 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faFileImage, 
-  faCloudUploadAlt, 
   faSpinner, 
   faCheckCircle, 
   faExclamationTriangle,
-  faTrash,
-  faRedo,
-  faRedoAlt
+  faArrowUpFromBracket,
+  faArrowLeft,
+  faFile,
+  faShieldAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import { uploadImage, analyzeImage, type UploadResult, type AnalysisResult } from '../api/imageUpload';
+import { useStats } from '../contexts/StatsContext';
+import ResultsDisplay from '../components/ResultsDisplay';
+
+interface SelectedFile {
+  id: string;
+  file: File;
+  preview?: string;
+}
 
 interface UploadedFile {
   id: string;
@@ -19,75 +28,45 @@ interface UploadedFile {
   status: 'uploading' | 'uploaded' | 'analyzing' | 'completed' | 'error';
   analysis?: AnalysisResult['data'];
   error?: string;
+  progress?: number;
+  fraudRisk?: number;
+  claimAmount?: number;
+  keyIndicators?: string[];
+}
+
+interface BatchAnalysisState {
+  isAnalyzing: boolean;
+  totalFiles: number;
+  completedFiles: number;
+  currentFile?: string;
 }
 
 const Upload: React.FC = () => {
+  const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [batchState, setBatchState] = useState<BatchAnalysisState>({
+    isAnalyzing: false,
+    totalFiles: 0,
+    completedFiles: 0
+  });
+  const [showResults, setShowResults] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { updateStats } = useStats();
 
-  const handleFileSelect = async (files: FileList) => {
+  const navigate = useNavigate();
+
+  const handleFileSelect = (files: FileList) => {
     const fileArray = Array.from(files);
     
-    // Add files to state with uploading status
-    const newFiles: UploadedFile[] = fileArray.map(file => ({
+    // Create preview URLs and add files to selected files
+    const newFiles: SelectedFile[] = fileArray.map(file => ({
       id: Math.random().toString(36).substr(2, 9),
       file,
-      status: 'uploading' as const
+      preview: URL.createObjectURL(file)
     }));
     
-    setUploadedFiles(prev => [...prev, ...newFiles]);
-
-    // Process each file
-    for (const uploadFile of newFiles) {
-      try {
-        // Upload to Supabase
-        const uploadResult: UploadResult = await uploadImage(uploadFile.file);
-        
-        if (uploadResult.success) {
-          // Update status to uploaded
-          setUploadedFiles(prev => 
-            prev.map(f => 
-              f.id === uploadFile.id 
-                ? { ...f, status: 'analyzing', url: uploadResult.url }
-                : f
-            )
-          );
-
-          // Start analysis
-          const analysisResult = await analyzeImage(uploadResult.url!);
-          
-          setUploadedFiles(prev => 
-            prev.map(f => 
-              f.id === uploadFile.id 
-                ? { 
-                    ...f, 
-                    status: analysisResult.success ? 'completed' : 'error',
-                    analysis: analysisResult.data,
-                    error: analysisResult.error
-                  }
-                : f
-            )
-          );
-        } else {
-          setUploadedFiles(prev => 
-            prev.map(f => 
-              f.id === uploadFile.id 
-                ? { ...f, status: 'error', error: uploadResult.error }
-                : f
-            )
-          );
-        }
-      } catch (error) {
-        setUploadedFiles(prev => 
-          prev.map(f => 
-            f.id === uploadFile.id 
-              ? { ...f, status: 'error', error: 'Upload failed' }
-              : f
-          )
-        );
-      }
-    }
+    setSelectedFiles(prev => [...prev, ...newFiles]);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -117,259 +96,385 @@ const Upload: React.FC = () => {
   };
 
   const removeFile = (id: string) => {
-    setUploadedFiles(prev => prev.filter(f => f.id !== id));
+    setSelectedFiles(prev => {
+      const fileToRemove = prev.find(f => f.id === id);
+      if (fileToRemove?.preview) {
+        URL.revokeObjectURL(fileToRemove.preview);
+      }
+      return prev.filter(f => f.id !== id);
+    });
   };
 
-  const retryFile = async (id: string) => {
-    const fileToRetry = uploadedFiles.find(f => f.id === id);
-    if (!fileToRetry) return;
 
-    // Reset status to uploading
-    setUploadedFiles(prev => 
-      prev.map(f => 
-        f.id === id 
-          ? { ...f, status: 'uploading', error: undefined }
-          : f
-      )
-    );
+  const startBatchAnalysis = async () => {
+    if (selectedFiles.length === 0) return;
 
-    try {
-      // Upload to Supabase
-      const uploadResult: UploadResult = await uploadImage(fileToRetry.file);
+    // Initialize uploaded files from selected files
+    const initialUploadedFiles: UploadedFile[] = selectedFiles.map(file => ({
+      id: file.id,
+      file: file.file,
+      status: 'uploading' as const,
+      progress: 0
+    }));
+
+    setUploadedFiles(initialUploadedFiles);
+    setBatchState({
+      isAnalyzing: true,
+      totalFiles: selectedFiles.length,
+      completedFiles: 0
+    });
+    setShowResults(false);
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const selectedFile = selectedFiles[i];
       
-      if (uploadResult.success) {
-        // Update status to uploaded
+      setBatchState(prev => ({
+        ...prev,
+        currentFile: selectedFile.file.name
+      }));
+
+      try {
+        // Update status to uploading
         setUploadedFiles(prev => 
           prev.map(f => 
-            f.id === id 
-              ? { ...f, status: 'analyzing', url: uploadResult.url }
+            f.id === selectedFile.id 
+              ? { ...f, status: 'uploading', progress: 0 }
               : f
           )
         );
 
-        // Start analysis
-        const analysisResult = await analyzeImage(uploadResult.url!);
+        // Upload to Supabase
+        const uploadResult: UploadResult = await uploadImage(selectedFile.file);
         
+        if (uploadResult.success) {
+          // Update status to analyzing
+          setUploadedFiles(prev => 
+            prev.map(f => 
+              f.id === selectedFile.id 
+                ? { ...f, status: 'analyzing', url: uploadResult.url, progress: 0 }
+                : f
+            )
+          );
+
+          // Simulate progress updates
+          for (let progress = 0; progress <= 100; progress += 20) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            setUploadedFiles(prev => 
+              prev.map(f => 
+                f.id === selectedFile.id 
+                  ? { ...f, progress }
+                  : f
+              )
+            );
+          }
+
+          // Perform analysis
+          const analysisResult = await analyzeImage(uploadResult.url!);
+          
+          if (analysisResult.success && analysisResult.data) {
+            const fraudRisk = Math.round(parseFloat(analysisResult.data.aiScore) * 100);
+            const claimAmount = fraudRisk > 50 ? Math.floor(Math.random() * 15000) + 1000 : 0;
+            const keyIndicators = analysisResult.data.detectedIssues || [];
+
+            setUploadedFiles(prev => 
+              prev.map(f => 
+                f.id === selectedFile.id 
+                  ? { 
+                      ...f, 
+                      status: 'completed',
+                      analysis: analysisResult.data,
+                      fraudRisk,
+                      claimAmount,
+                      keyIndicators,
+                      progress: 100
+                    }
+                  : f
+              )
+            );
+
+            // Update global stats
+            updateStats(analysisResult.data.isFraudulent, claimAmount);
+          } else {
+            setUploadedFiles(prev => 
+              prev.map(f => 
+                f.id === selectedFile.id 
+                  ? { ...f, status: 'error', error: analysisResult.error }
+                  : f
+              )
+            );
+          }
+        } else {
+          setUploadedFiles(prev => 
+            prev.map(f => 
+              f.id === selectedFile.id 
+                ? { ...f, status: 'error', error: uploadResult.error }
+                : f
+            )
+          );
+        }
+      } catch (error) {
         setUploadedFiles(prev => 
           prev.map(f => 
-            f.id === id 
-              ? { 
-                  ...f, 
-                  status: analysisResult.success ? 'completed' : 'error',
-                  analysis: analysisResult.data,
-                  error: analysisResult.error
-                }
-              : f
-          )
-        );
-      } else {
-        setUploadedFiles(prev => 
-          prev.map(f => 
-            f.id === id 
-              ? { ...f, status: 'error', error: uploadResult.error }
+            f.id === selectedFile.id 
+              ? { ...f, status: 'error', error: 'Upload failed' }
               : f
           )
         );
       }
-    } catch (error) {
-      setUploadedFiles(prev => 
-        prev.map(f => 
-          f.id === id 
-            ? { ...f, status: 'error', error: 'Upload failed' }
-            : f
-        )
-      );
+
+      setBatchState(prev => ({
+        ...prev,
+        completedFiles: prev.completedFiles + 1
+      }));
     }
+
+    setBatchState(prev => ({
+      ...prev,
+      isAnalyzing: false,
+      currentFile: undefined
+    }));
+    setShowResults(true);
   };
 
-  const retryAllFailed = async () => {
-    const failedFiles = uploadedFiles.filter(f => f.status === 'error');
-    
-    for (const file of failedFiles) {
-      await retryFile(file.id);
-    }
-  };
-
-  const getStatusIcon = (status: UploadedFile['status']) => {
-    switch (status) {
-      case 'uploading':
-      case 'analyzing':
-        return <FontAwesomeIcon icon={faSpinner} className="animate-spin text-blue-600" />;
-      case 'completed':
-        return <FontAwesomeIcon icon={faCheckCircle} className="text-green-600" />;
-      case 'error':
-        return <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600" />;
-      default:
-        return null;
-    }
-  };
-
-  const getStatusText = (status: UploadedFile['status']) => {
-    switch (status) {
-      case 'uploading':
-        return 'Uploading...';
-      case 'analyzing':
-        return 'Analyzing...';
-      case 'completed':
-        return 'Analysis Complete';
-      case 'error':
-        return 'Error';
-      default:
-        return 'Uploaded';
-    }
-  };
 
   return (
     <div className="p-6">
       <div className="max-w-6xl mx-auto">
+        {/* Header Section */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload & Analyze</h1>
-          <p className="text-gray-600">
-            Upload vehicle damage images for AI-powered fraud detection analysis
-          </p>
-        </div>
-
-        {/* Upload Area */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8">
-          <div className="text-center">
-            <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <FontAwesomeIcon icon={faCloudUploadAlt} className="text-4xl text-blue-600" />
-            </div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">Upload Vehicle Damage Images</h2>
-            <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-              Drag and drop your images here, or click to browse. We support JPG, PNG, and other common image formats.
-            </p>
-            
-            <div 
-              className={`border-2 border-dashed rounded-lg p-12 transition-colors duration-200 cursor-pointer ${
-                isDragOver 
-                  ? 'border-blue-400 bg-blue-50' 
-                  : 'border-gray-300 hover:border-blue-400'
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+          <div className="flex items-center mb-4">
+            <button 
+              className="mr-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={() => navigate('/dashboard')}
             >
-              <FontAwesomeIcon icon={faFileImage} className="text-6xl text-gray-400 mb-4" />
-              <p className="text-lg font-medium text-gray-700 mb-2">Drop files here or click to upload</p>
-              <p className="text-sm text-gray-500">Maximum file size: 10MB per image</p>
+              <FontAwesomeIcon icon={faArrowLeft} className="text-gray-600" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">AI Fraud Detection</h1>
+              <p className="text-gray-600">
+                Upload vehicle damage images for intelligent fraud analysis.
+              </p>
             </div>
-            
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleFileInputChange}
-              className="hidden"
-            />
           </div>
         </div>
 
-        {/* Uploaded Files */}
-        {uploadedFiles.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Uploaded Files</h3>
-              {uploadedFiles.some(f => f.status === 'error') && (
-                <button
-                  onClick={retryAllFailed}
-                  className="bg-gray-50 hover:bg-gray-300 text-black px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-colors duration-200"
-                >
-                  <FontAwesomeIcon icon={faRedoAlt} />
-                  <span>Retry All</span>
-                </button>
-              )}
+        {/* Main Upload Section */}
+        <div className="mb-8">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+            <div className="flex items-center mb-6">
+              <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-2xl text-blue-600 mr-3" />
+              <h2 className="text-2xl font-semibold text-gray-900">Upload Vehicle Damage Images</h2>
             </div>
-            <div className="space-y-4">
-              {uploadedFiles.map((file) => (
-                <div key={file.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <FontAwesomeIcon icon={faFileImage} className="text-gray-500" />
+            
+            {selectedFiles.length === 0 ? (
+              <div 
+                className={`border-2 border-dashed rounded-lg p-12 transition-colors duration-200 cursor-pointer ${
+                  isDragOver 
+                    ? 'border-blue-400 bg-blue-50' 
+                    : 'border-gray-300 hover:border-blue-400'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <div className="text-center">
+                  <div className="w-20 h-20 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-6">
+                    <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-3xl text-blue-600" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-3">Select Multiple Images</h3>
+                  <p className="text-gray-600 mb-8">
+                    Drag & drop your vehicle damage photos here, or click to browse.
+                  </p>
+                  <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center space-x-2 mx-auto transition-colors">
+                    <FontAwesomeIcon icon={faFile} />
+                    <span>Browse Files</span>
+                  </button>
+                  <p className="text-sm text-gray-500 mt-4">
+                    Supports: JPEG, PNG, PDF • Max size: 10MB
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p className="text-gray-600 mb-6">
+                  Select multiple images for batch processing ({selectedFiles.length} files selected)
+                </p>
+                
+                {/* Image Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+                  {selectedFiles.map((file) => (
+                    <div key={file.id} className="relative bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="aspect-square bg-gray-200 rounded-lg mb-3 overflow-hidden">
+                        {file.preview ? (
+                          <img 
+                            src={file.preview} 
+                            alt={file.file.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <FontAwesomeIcon icon={faFileImage} className="text-2xl text-gray-400" />
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{file.file.name}</p>
-                        <p className="text-sm text-gray-500">
-                          {(file.file.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
+                      <p className="text-sm font-medium text-gray-900 truncate" title={file.file.name}>
+                        {file.file.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {(file.file.size / 1024 / 1024).toFixed(1)} MB
+                      </p>
+                      <button
+                        onClick={() => removeFile(file.id)}
+                        className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  
+                  {/* Add More Button */}
+                  <div 
+                    className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <FontAwesomeIcon icon={faArrowUpFromBracket} className="text-2xl text-gray-400 mb-2" />
+                    <span className="text-sm text-gray-500">Add More</span>
+                  </div>
+                </div>
+                
+                <div className="text-center mb-6">
+                  <p className="text-gray-600">
+                    {selectedFiles.length} files selected for batch analysis
+                  </p>
+                </div>
+                
+                <div className="text-center">
+                  <button
+                    onClick={startBatchAnalysis}
+                    disabled={batchState.isAnalyzing}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-8 py-4 rounded-lg flex items-center space-x-3 mx-auto transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faShieldAlt} />
+                    <span>
+                      {batchState.isAnalyzing 
+                        ? `Analyzing ${batchState.completedFiles}/${batchState.totalFiles} Images...` 
+                        : `Analyze ${selectedFiles.length} Images for Fraud`
+                      }
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*"
+          onChange={handleFileInputChange}
+          className="hidden"
+        />
+
+        {/* Batch Analysis Progress */}
+        {batchState.isAnalyzing && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8 h-full">
+            <div className="flex items-center mb-6">
+              <FontAwesomeIcon icon={faShieldAlt} className="text-2xl text-blue-600 mr-3" />
+              <h2 className="text-2xl font-semibold text-gray-900">Batch Analysis Progress</h2>
+            </div>
+            
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-600">Processing {batchState.totalFiles} images</span>
+                <span className="text-sm text-green-600 font-medium">{batchState.completedFiles} completed</span>
+              </div>
+              
+              <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+                <div 
+                  className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                  style={{ width: `${(batchState.completedFiles / batchState.totalFiles) * 100}%` }}
+                ></div>
+              </div>
+              
+              <div className="flex justify-between text-sm text-gray-600">
+                <span className="font-medium">Overall Progress</span>
+                <span>{Math.round((batchState.completedFiles / batchState.totalFiles) * 100)}%</span>
+              </div>
+            </div>
+
+            {/* Individual File Progress */}
+            <div className="space-y-3 max-h-80 overflow-y-auto pb-4">
+              {uploadedFiles.map((file) => (
+                <div key={file.id} className="bg-green-50 rounded-lg p-4 border border-green-200">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
+                      {file.url ? (
+                        <img src={file.url} alt={file.file.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileImage} className="text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{file.file.name}</p>
+                      <div className="flex items-center space-x-2 mt-1">
+                        {file.status === 'completed' ? (
+                          <>
+                            <FontAwesomeIcon icon={faCheckCircle} className="text-green-600 text-sm" />
+                            <span className="text-sm text-green-600">Completed</span>
+                          </>
+                        ) : file.status === 'analyzing' ? (
+                          <>
+                            <FontAwesomeIcon icon={faSpinner} className="text-blue-600 text-sm animate-spin" />
+                            <span className="text-sm text-blue-600">Analyzing...</span>
+                          </>
+                        ) : file.status === 'uploading' ? (
+                          <>
+                            <FontAwesomeIcon icon={faSpinner} className="text-blue-600 text-sm animate-spin" />
+                            <span className="text-sm text-blue-600">Uploading...</span>
+                          </>
+                        ) : file.status === 'error' ? (
+                          <>
+                            <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600 text-sm" />
+                            <span className="text-sm text-red-600">Error</span>
+                          </>
+                        ) : (
+                          <>
+                            <FontAwesomeIcon icon={faSpinner} className="text-blue-600 text-sm animate-spin" />
+                            <span className="text-sm text-blue-600">Processing...</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     
-                    <div className="flex items-center space-x-3">
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(file.status)}
-                        <span className="text-sm text-gray-600">
-                          {getStatusText(file.status)}
-                        </span>
+                    <div className="text-right">
+                      <div className="w-20 bg-gray-200 rounded-full h-1 mb-1">
+                        <div 
+                          className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                          style={{ width: `${file.progress || 0}%` }}
+                        ></div>
                       </div>
-                      
-                      {file.status === 'completed' && file.analysis && (
-                        <div className="flex items-center space-x-2">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            file.analysis.isFraudulent 
-                              ? 'bg-red-100 text-red-800' 
-                              : file.analysis.riskLevel === 'HIGH'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-green-100 text-green-800'
-                          }`}>
-                            {file.analysis.isFraudulent ? 'FRAUD' : file.analysis.riskLevel}
-                          </span>
-                          <span className="text-sm text-gray-600">
-                            {Math.round(file.analysis.confidence * 100)}% confidence
-                          </span>
-                        </div>
-                      )}
-                      
-                      {file.status === 'error' && (
-                        <button
-                          onClick={() => retryFile(file.id)}
-                          className="text-gray-600 hover:text-gray-800 mr-2"
-                          title="Retry upload"
-                        >
-                          <FontAwesomeIcon icon={faRedo} />
-                        </button>
-                      )}
-                      
-                      <button
-                        onClick={() => removeFile(file.id)}
-                        className="text-red-600 hover:text-red-800"
-                        title="Remove file"
-                      >
-                        <FontAwesomeIcon icon={faTrash} />
-                      </button>
+                      <span className="text-xs text-gray-500">{file.progress || 0}%</span>
                     </div>
                   </div>
-                  
-                  {file.status === 'completed' && file.analysis && (
-                    <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                      <h4 className="font-medium text-gray-900 mb-2">Analysis Results</h4>
-                      <p className="text-sm text-gray-700 mb-2">{file.analysis.analysis}</p>
-                      {file.analysis.detectedIssues.length > 0 && (
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 mb-1">Detected Issues:</p>
-                          <ul className="text-sm text-gray-700 list-disc list-inside">
-                            {file.analysis.detectedIssues.map((issue, index) => (
-                              <li key={index}>{issue}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {file.status === 'error' && file.error && (
-                    <div className="mt-4 p-4 bg-red-50 rounded-lg">
-                      <p className="text-sm text-red-700">{file.error}</p>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* Results Display */}
+        {showResults && (
+          <ResultsDisplay 
+            files={uploadedFiles}
+          />
+        )}
+
       </div>
     </div>
   );
