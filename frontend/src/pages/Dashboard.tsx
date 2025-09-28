@@ -33,7 +33,7 @@ import { useStats } from '../contexts/StatsContext';
 
 const Dashboard: React.FC = () => {
 	const { casesAnalyzed, fraudDetected, moneySaved } = useStats();
-	const fraudRate = casesAnalyzed > 0 ? ((fraudDetected / casesAnalyzed) * 100).toFixed(1) : '0.0';
+	// const fraudRate = casesAnalyzed > 0 ? ((fraudDetected / casesAnalyzed) * 100).toFixed(1) : '0.0';
 	
 	// Chart.js data
 	const week1Cases = Math.max(1, casesAnalyzed - 3);

@@ -196,7 +196,7 @@ const Cases: React.FC = () => {
           ) : (
             sortedCases.map((caseItem) => {
               const statusInfo = getStatusInfo(caseItem.fraud_detected_count, caseItem.total_files);
-              const fraudRate = (caseItem.fraud_detected_count / caseItem.total_files) * 100;
+              // const fraudRate = (caseItem.fraud_detected_count / caseItem.total_files) * 100;
               const completionRate = (caseItem.completed_files / caseItem.total_files) * 100;
               
               return (
