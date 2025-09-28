@@ -4,9 +4,9 @@ A comprehensive AI-powered system for detecting fraudulent vehicle damage claims
 
 ## 🏗️ System Architecture
 
-For a complete overview of the system architecture and component relationships:
+![iSpy System Architecture](./architectural_diagram.png)
 
-📋 **[System Architecture Diagram](./iSpy%20Architectural%20Diagram.pdf)**
+*Complete system architecture showing component relationships and data flow*
 
 ## 📚 Documentation
 
