@@ -1,5 +1,26 @@
 import React from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+	Chart as ChartJS,
+	CategoryScale,
+	LinearScale,
+	PointElement,
+	LineElement,
+	Title,
+	Tooltip,
+	Legend,
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+
+ChartJS.register(
+	CategoryScale,
+	LinearScale,
+	PointElement,
+	LineElement,
+	Title,
+	Tooltip,
+	Legend
+);
 import { 
 	faFileAlt, 
 	faExclamationTriangle, 
@@ -14,6 +35,188 @@ import { useStats } from '../contexts/StatsContext';
 const Dashboard: React.FC = () => {
 	const { casesAnalyzed, fraudDetected, moneySaved } = useStats();
 	const fraudRate = casesAnalyzed > 0 ? ((fraudDetected / casesAnalyzed) * 100).toFixed(1) : '0.0';
+	
+	// Chart.js data
+	const week1Cases = Math.max(1, casesAnalyzed - 3);
+	const week2Cases = Math.max(1, casesAnalyzed - 2);
+	const week3Cases = Math.max(1, casesAnalyzed - 1);
+	const week4Cases = casesAnalyzed;
+	
+	const week1Fraud = Math.max(0, fraudDetected - 1);
+	const week2Fraud = Math.max(0, fraudDetected - 1);
+	const week3Fraud = fraudDetected;
+	const week4Fraud = fraudDetected;
+	
+	const week1Money = Math.max(100, moneySaved - 5000);
+	const week2Money = Math.max(200, moneySaved - 3000);
+	const week3Money = Math.max(500, moneySaved - 1000);
+	const week4Money = moneySaved;
+
+	const chartData = {
+		labels: ['Week 1', 'Week 2', 'Week 3', 'This Week'],
+		datasets: [
+			{
+				label: 'Cases Analyzed',
+				data: [week1Cases, week2Cases, week3Cases, week4Cases],
+				borderColor: '#3B82F6',
+				backgroundColor: 'rgba(59, 130, 246, 0.1)',
+				borderWidth: 3,
+				pointBackgroundColor: '#3B82F6',
+				pointBorderColor: '#ffffff',
+				pointBorderWidth: 2,
+				pointRadius: 6,
+				pointHoverRadius: 8,
+				tension: 0.3,
+			},
+			{
+				label: 'Fraud Detected',
+				data: [week1Fraud, week2Fraud, week3Fraud, week4Fraud],
+				borderColor: '#EF4444',
+				backgroundColor: 'rgba(239, 68, 68, 0.1)',
+				borderWidth: 3,
+				pointBackgroundColor: '#EF4444',
+				pointBorderColor: '#ffffff',
+				pointBorderWidth: 2,
+				pointRadius: 6,
+				pointHoverRadius: 8,
+				tension: 0.3,
+			},
+			{
+				label: 'Money Saved ($)',
+				data: [week1Money, week2Money, week3Money, week4Money],
+				borderColor: '#10B981',
+				backgroundColor: 'rgba(16, 185, 129, 0.1)',
+				borderWidth: 3,
+				pointBackgroundColor: '#10B981',
+				pointBorderColor: '#ffffff',
+				pointBorderWidth: 2,
+				pointRadius: 6,
+				pointHoverRadius: 8,
+				tension: 0.3,
+				yAxisID: 'y1',
+			},
+		],
+	};
+
+	const chartOptions = {
+		responsive: true,
+		maintainAspectRatio: false,
+		plugins: {
+			legend: {
+				position: 'top' as const,
+				labels: {
+					usePointStyle: true,
+					pointStyle: 'circle',
+					padding: 20,
+					font: {
+						size: 12,
+					},
+				},
+			},
+			tooltip: {
+				mode: 'index' as const,
+				intersect: false,
+				backgroundColor: 'rgba(255, 255, 255, 0.95)',
+				titleColor: '#1F2937',
+				bodyColor: '#4B5563',
+				borderColor: '#E5E7EB',
+				borderWidth: 1,
+				cornerRadius: 8,
+				padding: 12,
+				displayColors: true,
+				callbacks: {
+					label: function(context: any) {
+						let label = context.dataset.label || '';
+						if (label) {
+							label += ': ';
+						}
+						if (context.dataset.label === 'Money Saved ($)') {
+							label += '$' + context.parsed.y.toLocaleString();
+						} else {
+							label += context.parsed.y;
+						}
+						return label;
+					},
+					afterBody: function(tooltipItems: any[]) {
+						const weekData = tooltipItems[0];
+						const cases = chartData.datasets[0].data[weekData.dataIndex];
+						const fraud = chartData.datasets[1].data[weekData.dataIndex];
+						const detectionRate = cases > 0 ? ((fraud / cases) * 100).toFixed(1) : '0';
+						return [`Detection Rate: ${detectionRate}%`];
+					},
+				},
+			},
+		},
+		interaction: {
+			mode: 'nearest' as const,
+			axis: 'x' as const,
+			intersect: false,
+		},
+		scales: {
+			x: {
+				display: true,
+				title: {
+					display: true,
+					text: 'Timeline',
+					font: {
+						size: 12,
+						weight: 'bold' as const,
+					},
+				},
+				grid: {
+					color: 'rgba(229, 231, 235, 0.5)',
+				},
+			},
+			y: {
+				type: 'linear' as const,
+				display: true,
+				position: 'left' as const,
+				title: {
+					display: true,
+					text: 'Cases',
+					font: {
+						size: 12,
+						weight: 'bold' as const,
+					},
+				},
+				grid: {
+					color: 'rgba(229, 231, 235, 0.3)',
+				},
+				beginAtZero: true,
+			},
+			y1: {
+				type: 'linear' as const,
+				display: true,
+				position: 'right' as const,
+				title: {
+					display: true,
+					text: 'Money Saved ($)',
+					font: {
+						size: 12,
+						weight: 'bold' as const,
+					},
+				},
+				grid: {
+					drawOnChartArea: false,
+				},
+				beginAtZero: true,
+				ticks: {
+					callback: function(value: any) {
+						return '$' + value.toLocaleString();
+					},
+				},
+			},
+		},
+		elements: {
+			line: {
+				borderJoinStyle: 'round' as const,
+				borderCapStyle: 'round' as const,
+			},
+			point: {
+				hoverBackgroundColor: '#ffffff',
+			},
+		},
+	};
 	
 	const metrics = [
 		{
@@ -43,33 +246,6 @@ const Dashboard: React.FC = () => {
 			iconColor: 'text-green-600',
 			color: 'bg-green-100',
 		},
-		{
-			title: 'Avg Processing Time',
-			value: '2.2s',
-			change: '2.3s improvement',
-			changeType: 'positive',
-			icon: faClock,
-			iconColor: 'text-purple-600',
-			color: 'bg-purple-100',
-		},
-		{
-			title: 'Suspicious Cases',
-			value: '1',
-			change: 'Pending review',
-			changeType: 'neutral',
-			icon: faShieldAlt,
-			iconColor: 'text-orange-600',
-			color: 'bg-orange-100',
-		},
-		{
-			title: 'Detection Accuracy',
-			value: '94.7%',
-			change: '+2.1% vs last month',
-			changeType: 'positive',
-			icon: faChartLine,
-			iconColor: 'text-blue-600',
-			color: 'bg-blue-100',
-		}
 	];
 
 	const securityAlerts = [
@@ -115,30 +291,34 @@ const Dashboard: React.FC = () => {
 			</div>
 
 			{/* Key Metrics */}
-			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-rows-1 xl:grid-rows-2 gap-6">
+			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-rows-1 gap-6">
 				{metrics.map((metric, index) => (
 					<div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
 						<div className='flex flex-row w-full justify-between gap-2'>
 							<div className="flex flex-col">
 								<p className="text-sm text-gray-600">{metric.title}</p>
 								<p className={`text-2xl font-bold mb-1 ${metric.title === 'Money Saved' && moneySaved > 0 ? 'text-green-600' : 'text-gray-900'}`}>{metric.value}</p>
-								<div className="flex items-center justify-between my-4 gap-3">
-									<div className="flex flex-row items-center space-x-1 gap-2 w-full">
-										<FontAwesomeIcon 
-											icon={faArrowUp} 
-											className={`text-xs ${
+								{metric.change && (
+									<div className="flex items-center justify-between my-4 gap-3">
+										<div className="flex flex-row items-center space-x-1 gap-2 w-full">
+											{metric.title !== 'Suspicious Cases' && (
+												<FontAwesomeIcon 
+													icon={faArrowUp} 
+													className={`text-xs ${
+														metric.changeType === 'positive' ? 'text-green-600' : 
+														metric.changeType === 'negative' ? 'text-red-600' : 'text-gray-600'
+													}`} 
+												/>
+											)}
+											<span className={`text-sm font-medium ${
 												metric.changeType === 'positive' ? 'text-green-600' : 
 												metric.changeType === 'negative' ? 'text-red-600' : 'text-gray-600'
-											}`} 
-										/>
-										<span className={`text-sm font-medium ${
-											metric.changeType === 'positive' ? 'text-green-600' : 
-											metric.changeType === 'negative' ? 'text-red-600' : 'text-gray-600'
-										}`}>
-											{metric.change}
-										</span>
+											}`}>
+												{metric.change}
+											</span>
+										</div>
 									</div>
-								</div>
+								)}
 							</div>
 							<div className="flex flex-col">
 								<div className={`p-3 rounded-lg ${metric.iconColor.replace('text-', 'bg-').replace('-600', '-100')}`}>
@@ -158,133 +338,10 @@ const Dashboard: React.FC = () => {
 						<p className="text-gray-600">Monthly breakdown of analyzed cases</p>
 					</div>
 					
-					{/* Fraud Detection Timeline Chart */}
-					<div className="h-64 bg-gray-50 rounded-lg p-4 mb-6">
-						<div className="h-full flex flex-col">
-							<div className="flex justify-between items-center mb-4">
-								<h4 className="text-sm font-medium text-gray-700">Cases & Money Saved Over Time</h4>
-								<div className="flex space-x-4 text-xs">
-									<div className="flex items-center space-x-1">
-										<div className="w-3 h-3 bg-blue-500 rounded"></div>
-										<span className="text-gray-600">Cases Analyzed</span>
-									</div>
-									<div className="flex items-center space-x-1">
-										<div className="w-3 h-3 bg-red-500 rounded"></div>
-										<span className="text-gray-600">Fraud Detected</span>
-									</div>
-									<div className="flex items-center space-x-1">
-										<div className="w-3 h-3 bg-green-500 rounded"></div>
-										<span className="text-gray-600">Money Saved</span>
-									</div>
-								</div>
-							</div>
-							
-							{/* Chart Area */}
-							<div className="flex-1 relative">
-								{/* Y-axis labels */}
-								<div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-gray-500 pr-2">
-									<span>{Math.max(casesAnalyzed, fraudDetected, Math.round(moneySaved / 1000))}</span>
-									<span>{Math.round(Math.max(casesAnalyzed, fraudDetected, Math.round(moneySaved / 1000)) * 0.75)}</span>
-									<span>{Math.round(Math.max(casesAnalyzed, fraudDetected, Math.round(moneySaved / 1000)) * 0.5)}</span>
-									<span>{Math.round(Math.max(casesAnalyzed, fraudDetected, Math.round(moneySaved / 1000)) * 0.25)}</span>
-									<span>0</span>
-								</div>
-								
-								{/* Chart bars */}
-								<div className="ml-8 h-full flex items-end justify-center space-x-4">
-									{/* Week 1 */}
-									<div className="flex flex-col items-center space-y-1">
-										<div className="flex items-end space-x-1 h-40">
-											<div 
-												className="w-4 bg-blue-500 rounded-t" 
-												style={{ height: `${Math.max(5, (Math.max(1, casesAnalyzed - 3) / Math.max(1, casesAnalyzed)) * 160)}px` }}
-											></div>
-											<div 
-												className="w-4 bg-red-500 rounded-t" 
-												style={{ height: `${Math.max(5, (Math.max(1, fraudDetected - 1) / Math.max(1, casesAnalyzed)) * 160)}px` }}
-											></div>
-											<div 
-												className="w-4 bg-green-500 rounded-t" 
-												style={{ height: `${Math.max(5, (Math.max(100, moneySaved - 5000) / Math.max(1000, moneySaved)) * 160)}px` }}
-											></div>
-										</div>
-										<span className="text-xs text-gray-500">Week 1</span>
-									</div>
-									
-									{/* Week 2 */}
-									<div className="flex flex-col items-center space-y-1">
-										<div className="flex items-end space-x-1 h-40">
-											<div 
-												className="w-4 bg-blue-500 rounded-t" 
-												style={{ height: `${Math.max(5, (Math.max(1, casesAnalyzed - 2) / Math.max(1, casesAnalyzed)) * 160)}px` }}
-											></div>
-											<div 
-												className="w-4 bg-red-500 rounded-t" 
-												style={{ height: `${Math.max(5, (Math.max(1, fraudDetected - 1) / Math.max(1, casesAnalyzed)) * 160)}px` }}
-											></div>
-											<div 
-												className="w-4 bg-green-500 rounded-t" 
-												style={{ height: `${Math.max(5, (Math.max(200, moneySaved - 3000) / Math.max(1000, moneySaved)) * 160)}px` }}
-											></div>
-										</div>
-										<span className="text-xs text-gray-500">Week 2</span>
-									</div>
-									
-									{/* Week 3 */}
-									<div className="flex flex-col items-center space-y-1">
-										<div className="flex items-end space-x-1 h-40">
-											<div 
-												className="w-4 bg-blue-500 rounded-t" 
-												style={{ height: `${Math.max(5, (Math.max(1, casesAnalyzed - 1) / Math.max(1, casesAnalyzed)) * 160)}px` }}
-											></div>
-											<div 
-												className="w-4 bg-red-500 rounded-t" 
-												style={{ height: `${Math.max(5, (fraudDetected / Math.max(1, casesAnalyzed)) * 160)}px` }}
-											></div>
-											<div 
-												className="w-4 bg-green-500 rounded-t" 
-												style={{ height: `${Math.max(5, (Math.max(500, moneySaved - 1000) / Math.max(1000, moneySaved)) * 160)}px` }}
-											></div>
-										</div>
-										<span className="text-xs text-gray-500">Week 3</span>
-									</div>
-									
-									{/* Current Week */}
-									<div className="flex flex-col items-center space-y-1">
-										<div className="flex items-end space-x-1 h-40">
-											<div 
-												className="w-4 bg-blue-500 rounded-t" 
-												style={{ height: `${Math.max(10, (casesAnalyzed / Math.max(1, casesAnalyzed)) * 160)}px` }}
-											></div>
-											<div 
-												className="w-4 bg-red-500 rounded-t" 
-												style={{ height: `${Math.max(5, (fraudDetected / Math.max(1, casesAnalyzed)) * 160)}px` }}
-											></div>
-											<div 
-												className="w-4 bg-green-500 rounded-t" 
-												style={{ height: `${Math.max(10, (moneySaved / Math.max(1000, moneySaved)) * 160)}px` }}
-											></div>
-										</div>
-										<span className="text-xs text-gray-500 font-medium">This Week</span>
-									</div>
-								</div>
-								
-								{/* Grid lines */}
-								<div className="absolute inset-0 ml-8 pointer-events-none">
-									<div className="h-full flex flex-col justify-between">
-										{[...Array(5)].map((_, i) => (
-											<div key={i} className="border-t border-gray-200 w-full"></div>
-										))}
-									</div>
-								</div>
-							</div>
-							
-							{/* X-axis */}
-							<div className="border-t border-gray-300 mt-2 pt-2">
-								<div className="text-center text-xs text-gray-600">
-									Timeline showing fraud detection progress and financial impact
-								</div>
-							</div>
+					{/* Chart.js Multi-Line Chart */}
+					<div className="h-80 bg-white rounded-lg border border-gray-200 p-6 mb-6">
+						<div className="h-full">
+							<Line data={chartData} options={chartOptions} />
 						</div>
 					</div>
 
