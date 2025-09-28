@@ -24,7 +24,8 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
     { id: 'dashboard', label: 'Dashboard', icon: faGrip },
     { id: 'upload', label: 'Upload & Analyze', icon: faUpload },
     { id: 'upload-document', label: 'Upload Document', icon: faFilePdf },
-    { id: 'cases', label: 'Case Review', icon: faFileAlt },
+    { id: 'image-review', label: 'Image Review', icon: faFileAlt },
+    { id: 'cases', label: 'Case Review', icon: faShieldAlt },
   ];
 
   const quickStats = [

@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
-  faFileAlt, 
   faSearch, 
   faFilter, 
   faExclamationTriangle, 
   faCheckCircle, 
   faClock,
   faEye,
-  faSpinner
+  faSpinner,
+  faFolderOpen,
+  faChartBar
 } from '@fortawesome/free-solid-svg-icons';
-import { fetchImageAnalyses, type ImageAnalysis } from '../api/database';
+import { fetchAnalysisMetadata, type AnalysisMetadata } from '../api/database';
 
 const Cases: React.FC = () => {
-  const [cases, setCases] = useState<ImageAnalysis[]>([]);
+  const [cases, setCases] = useState<AnalysisMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [riskFilter, setRiskFilter] = useState('all');
 
   useEffect(() => {
     loadCases();
@@ -26,7 +26,7 @@ const Cases: React.FC = () => {
   const loadCases = async () => {
     setLoading(true);
     try {
-      const result = await fetchImageAnalyses();
+      const result = await fetchAnalysisMetadata();
       if (result.success && result.data) {
         setCases(result.data);
       } else {
@@ -39,39 +39,30 @@ const Cases: React.FC = () => {
     }
   };
 
-  const getStatusInfo = (isFraudulent: boolean, riskLevel: string) => {
-    if (isFraudulent) {
+  const getStatusInfo = (fraudDetectedCount: number, totalFiles: number) => {
+    const fraudRate = (fraudDetectedCount / totalFiles) * 100;
+    
+    if (fraudRate > 50) {
       return {
-        status: 'Fraudulent',
+        status: 'High Risk Case',
         statusColor: 'bg-red-100 text-red-800',
         statusIcon: faExclamationTriangle,
         statusIconColor: 'text-red-600'
       };
-    } else if (riskLevel === 'MEDIUM') {
+    } else if (fraudRate > 20) {
       return {
-        status: 'Suspicious',
+        status: 'Medium Risk Case',
         statusColor: 'bg-yellow-100 text-yellow-800',
         statusIcon: faClock,
         statusIconColor: 'text-yellow-600'
       };
     } else {
       return {
-        status: 'Genuine',
+        status: 'Low Risk Case',
         statusColor: 'bg-green-100 text-green-800',
         statusIcon: faCheckCircle,
         statusIconColor: 'text-green-600'
       };
-    }
-  };
-
-  const getRiskInfo = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'HIGH':
-        return { risk: 'High Risk', riskColor: 'bg-red-100 text-red-800' };
-      case 'MEDIUM':
-        return { risk: 'Medium Risk', riskColor: 'bg-yellow-100 text-yellow-800' };
-      default:
-        return { risk: 'Low Risk', riskColor: 'bg-green-100 text-green-800' };
     }
   };
 
@@ -85,19 +76,29 @@ const Cases: React.FC = () => {
     });
   };
 
-  const formatFileSize = (bytes: number) => {
-    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
   };
 
   const filteredCases = cases.filter(caseItem => {
-    const matchesSearch = caseItem.filename.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'fraudulent' && caseItem.is_fraudulent) ||
-      (statusFilter === 'suspicious' && !caseItem.is_fraudulent && caseItem.risk_level === 'MEDIUM') ||
-      (statusFilter === 'genuine' && !caseItem.is_fraudulent && caseItem.risk_level === 'LOW');
-    const matchesRisk = riskFilter === 'all' || caseItem.risk_level.toLowerCase() === riskFilter.toLowerCase();
+    const matchesSearch = caseItem.analysis_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const fraudRate = (caseItem.fraud_detected_count / caseItem.total_files) * 100;
     
-    return matchesSearch && matchesStatus && matchesRisk;
+    let matchesStatus = true;
+    if (statusFilter === 'high-risk') {
+      matchesStatus = fraudRate > 50;
+    } else if (statusFilter === 'medium-risk') {
+      matchesStatus = fraudRate > 20 && fraudRate <= 50;
+    } else if (statusFilter === 'low-risk') {
+      matchesStatus = fraudRate <= 20;
+    }
+    
+    return matchesSearch && matchesStatus;
   });
 
   if (loading) {
@@ -118,7 +119,7 @@ const Cases: React.FC = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Case Review</h1>
           <p className="text-gray-600">
-            Review and manage analyzed fraud detection cases.
+            Review and manage analysis cases grouped by analysis metadata.
           </p>
         </div>
 
@@ -133,7 +134,7 @@ const Cases: React.FC = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Search by vehicle or damage type..."
+                  placeholder="Search by case name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -150,20 +151,10 @@ const Cases: React.FC = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="all">All Status</option>
-                <option value="fraudulent">Fraudulent</option>
-                <option value="suspicious">Suspicious</option>
-                <option value="genuine">Genuine</option>
-              </select>
-              <select
-                value={riskFilter}
-                onChange={(e) => setRiskFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
                 <option value="all">All Risk Levels</option>
-                <option value="high">High Risk</option>
-                <option value="medium">Medium Risk</option>
-                <option value="low">Low Risk</option>
+                <option value="high-risk">High Risk Cases</option>
+                <option value="medium-risk">Medium Risk Cases</option>
+                <option value="low-risk">Low Risk Cases</option>
               </select>
             </div>
           </div>
@@ -173,49 +164,27 @@ const Cases: React.FC = () => {
         <div className="space-y-4">
           {filteredCases.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-              <FontAwesomeIcon icon={faFileAlt} className="text-4xl text-gray-400 mb-4" />
+              <FontAwesomeIcon icon={faFolderOpen} className="text-4xl text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No cases found</h3>
               <p className="text-gray-600">
-                {searchTerm || statusFilter !== 'all' || riskFilter !== 'all' 
+                {searchTerm || statusFilter !== 'all' 
                   ? 'Try adjusting your search or filter criteria.'
                   : 'No analysis cases have been created yet.'}
               </p>
             </div>
           ) : (
             filteredCases.map((caseItem) => {
-              const statusInfo = getStatusInfo(caseItem.is_fraudulent, caseItem.risk_level);
-              const riskInfo = getRiskInfo(caseItem.risk_level);
-              const claimAmount = caseItem.is_fraudulent ? Math.floor(Math.random() * 15000) + 1000 : Math.floor(Math.random() * 8000) + 500;
+              const statusInfo = getStatusInfo(caseItem.fraud_detected_count, caseItem.total_files);
+              const fraudRate = (caseItem.fraud_detected_count / caseItem.total_files) * 100;
+              const completionRate = (caseItem.completed_files / caseItem.total_files) * 100;
               
               return (
                 <div key={caseItem.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <div className="flex items-start space-x-6">
-                    {/* Image Section */}
+                    {/* Case Icon */}
                     <div className="flex-shrink-0">
-                      <div className="w-24 h-24 bg-gray-200 rounded-lg overflow-hidden relative">
-                        {caseItem.file_url ? (
-                          <img 
-                            src={caseItem.file_url} 
-                            alt={caseItem.filename}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <FontAwesomeIcon icon={faFileAlt} className="text-gray-400 text-2xl" />
-                          </div>
-                        )}
-                        {/* Status overlay */}
-                        <div className="absolute top-1 right-1">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                            caseItem.is_fraudulent ? 'bg-red-500' : 
-                            caseItem.risk_level === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'
-                          }`}>
-                            <FontAwesomeIcon 
-                              icon={statusInfo.statusIcon} 
-                              className="text-white text-xs"
-                            />
-                          </div>
-                        </div>
+                      <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <FontAwesomeIcon icon={faFolderOpen} className="text-blue-600 text-2xl" />
                       </div>
                     </div>
 
@@ -227,12 +196,9 @@ const Cases: React.FC = () => {
                             {caseItem.analysis_name}
                           </h3>
                           <p className="text-sm text-gray-500">
-                            Analyzed {formatDate(caseItem.created_at || new Date().toISOString())}
+                            Created {formatDate(caseItem.created_at || new Date().toISOString())}
                           </p>
                         </div>
-                        <button className="text-blue-600 hover:text-blue-900 p-2">
-                          <FontAwesomeIcon icon={faEye} className="w-4 h-4" />
-                        </button>
                       </div>
 
                       {/* Status Tags */}
@@ -240,42 +206,67 @@ const Cases: React.FC = () => {
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.statusColor}`}>
                           {statusInfo.status}
                         </span>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${riskInfo.riskColor}`}>
-                          {riskInfo.risk}
-                        </span>
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
-                          {caseItem.fraud_score > 80 ? 'high' : caseItem.fraud_score > 50 ? 'medium' : 'low'} confidence
+                          {Math.round(fraudRate)}% fraud rate
+                        </span>
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                          {Math.round(completionRate)}% complete
                         </span>
                       </div>
 
-                      {/* Metrics */}
+                      {/* Metrics Grid */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                         <div>
-                          <p className="text-sm text-gray-600">Fraud Score</p>
-                          <p className="text-2xl font-bold text-gray-900">{Math.round(caseItem.fraud_score * 100)}%</p>
+                          <p className="text-sm text-gray-600">Total Files</p>
+                          <p className="text-2xl font-bold text-gray-900">{caseItem.total_files}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">Claim Value</p>
-                          <p className="text-2xl font-bold text-gray-900">${claimAmount.toLocaleString()}</p>
+                          <p className="text-sm text-gray-600">Completed</p>
+                          <p className="text-2xl font-bold text-gray-900">{caseItem.completed_files}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">Issues Found</p>
-                          <p className="text-2xl font-bold text-red-600">{caseItem.detected_issues.length} indicators</p>
+                          <p className="text-sm text-gray-600">Fraud Detected</p>
+                          <p className="text-2xl font-bold text-red-600">{caseItem.fraud_detected_count}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Total Claim Value</p>
+                          <p className="text-2xl font-bold text-gray-900">{formatCurrency(caseItem.total_claim_amount)}</p>
                         </div>
                       </div>
 
-                      {/* Detected Issues */}
-                      {caseItem.detected_issues.length > 0 && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                          <h4 className="text-sm font-medium text-red-800 mb-2">Detected Issues:</h4>
-                          <ul className="space-y-1">
-                            {JSON.parse(caseItem.detected_issues).map((issue: string, index: number) => (
-                              <li key={index} className="text-sm text-red-700 flex items-start">
-                                <span className="text-red-500 mr-2">•</span>
-                                {issue}
-                              </li>
+                      {/* Progress Bar */}
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">Analysis Progress</span>
+                          <span className="text-sm text-gray-500">{Math.round(completionRate)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${completionRate}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      {/* File URLs Preview */}
+                      {caseItem.file_urls && Array.isArray(caseItem.file_urls) && caseItem.file_urls.length > 0 && (
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-gray-800 mb-2 flex items-center">
+                            <FontAwesomeIcon icon={faChartBar} className="mr-2" />
+                            Analysis Files ({caseItem.file_urls.length})
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {caseItem.file_urls.slice(0, 5).map((_, index) => (
+                              <span key={index} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                File {index + 1}
+                              </span>
                             ))}
-                          </ul>
+                            {caseItem.file_urls.length > 5 && (
+                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                                +{caseItem.file_urls.length - 5} more
+                              </span>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
