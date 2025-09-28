@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import Sidenav from './components/Sidenav';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
-import UploadDocument from './pages/UploadDocument';
 import ImageReview from './pages/ImageReview';
 import Cases from './pages/Cases';
 import CaseDetail from './pages/CaseDetail';
@@ -53,7 +52,6 @@ const AppLayout: React.FC = () => {
           <Routes>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/upload" element={<Upload />} />
-            <Route path="/upload-document" element={<UploadDocument />} />
             <Route path="/image-review" element={<ImageReview />} />
             <Route path="/cases" element={<Cases />} />
             <Route path="/cases/:analysisName" element={<CaseDetail />} />
