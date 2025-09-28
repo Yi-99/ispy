@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faSearch, 
@@ -6,7 +7,6 @@ import {
   faExclamationTriangle, 
   faCheckCircle, 
   faClock,
-  faEye,
   faSpinner,
   faFolderOpen,
   faChartBar
@@ -14,6 +14,7 @@ import {
 import { fetchAnalysisMetadata, type AnalysisMetadata } from '../api/database';
 
 const Cases: React.FC = () => {
+  const navigate = useNavigate();
   const [cases, setCases] = useState<AnalysisMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -183,22 +184,23 @@ const Cases: React.FC = () => {
                   <div className="flex items-start space-x-6">
                     {/* Case Icon */}
                     <div className="flex-shrink-0">
-                      <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <button 
+                        onClick={() => navigate(`/cases/${encodeURIComponent(caseItem.analysis_name)}`)}
+                        className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center hover:bg-blue-200 transition-colors cursor-pointer"
+                      >
                         <FontAwesomeIcon icon={faFolderOpen} className="text-blue-600 text-2xl" />
-                      </div>
+                      </button>
                     </div>
 
                     {/* Case Details */}
                     <div className="flex-1">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-1">
-                            {caseItem.analysis_name}
-                          </h3>
-                          <p className="text-sm text-gray-500">
-                            Created {formatDate(caseItem.created_at || new Date().toISOString())}
-                          </p>
-                        </div>
+                      <div className="mb-4">
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">
+                          {caseItem.analysis_name}
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          Created {formatDate(caseItem.created_at || new Date().toISOString())}
+                        </p>
                       </div>
 
                       {/* Status Tags */}
@@ -229,8 +231,8 @@ const Cases: React.FC = () => {
                           <p className="text-2xl font-bold text-red-600">{caseItem.fraud_detected_count}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">Total Claim Value</p>
-                          <p className="text-2xl font-bold text-gray-900">{formatCurrency(caseItem.total_claim_amount)}</p>
+                          <p className="text-sm text-gray-600">Total Claim Cost</p>
+                          <p className="text-2xl font-bold text-gray-900">{formatCurrency(caseItem.total_cost)}</p>
                         </div>
                       </div>
 

@@ -24,6 +24,7 @@ export interface AnalysisResult {
 		fraudAnalysis: string;
 		riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
 		detectedIssues: string[];
+		totalCost: number;
 	};
 	error?: string;
 }

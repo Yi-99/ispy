@@ -168,7 +168,7 @@ async function analyzeForFraud(imageUrl) {
             riskLevel,
             fraudAnalysis: fraudAnalysis,
             detectedIssues: fraudIndicators,
-            fraudScore: (Math.floor(fraudScore * 100) / 100).toFixed(2)
+            fraudScore: (Math.floor(fraudScore * 100) / 100).toFixed(2),
         };
     } catch (error) {
         console.error(`Error in analyzeForFraud: ${error.message}`);
@@ -179,7 +179,7 @@ async function analyzeForFraud(imageUrl) {
             analysis: `Analysis failed: ${error.message}`,
             detectedIssues: [],
             rawClassification: '',
-            fraudScore: 0
+            fraudScore: 0,
         };
     }
 }

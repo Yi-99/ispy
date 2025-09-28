@@ -7,7 +7,6 @@ import {
   faExclamationTriangle, 
   faCheckCircle, 
   faClock,
-  faEye,
   faSpinner
 } from '@fortawesome/free-solid-svg-icons';
 import { fetchImageAnalyses, type ImageAnalysis } from '../api/database';
@@ -85,12 +84,10 @@ const ImageReview: React.FC = () => {
     });
   };
 
-  const formatFileSize = (bytes: number) => {
-    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
-  };
-
   const filteredCases = cases.filter(caseItem => {
-    const matchesSearch = caseItem.filename.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = searchTerm === '' || 
+      caseItem.filename.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      caseItem.analysis_name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || 
       (statusFilter === 'fraudulent' && caseItem.is_fraudulent) ||
       (statusFilter === 'suspicious' && !caseItem.is_fraudulent && caseItem.risk_level === 'MEDIUM') ||
@@ -132,10 +129,10 @@ const ImageReview: React.FC = () => {
                   className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
                 />
                 <input
-                  type="text"
-                  placeholder="Search by vehicle or damage type..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                type="text"
+                placeholder="Search by filename or analysis name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -185,14 +182,13 @@ const ImageReview: React.FC = () => {
             filteredCases.map((caseItem) => {
               const statusInfo = getStatusInfo(caseItem.is_fraudulent, caseItem.risk_level);
               const riskInfo = getRiskInfo(caseItem.risk_level);
-              const claimAmount = caseItem.is_fraudulent ? Math.floor(Math.random() * 15000) + 1000 : Math.floor(Math.random() * 8000) + 500;
               
               return (
                 <div key={caseItem.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <div className="flex items-start space-x-6">
                     {/* Image Section */}
                     <div className="flex-shrink-0">
-                      <div className="w-24 h-24 bg-gray-200 rounded-lg overflow-hidden relative">
+                      <div className="w-48 h-48 bg-gray-200 rounded-lg overflow-hidden relative">
                         {caseItem.file_url ? (
                           <img 
                             src={caseItem.file_url} 
@@ -224,6 +220,9 @@ const ImageReview: React.FC = () => {
                       <div className="flex items-start justify-between mb-4">
                         <div>
                           <h3 className="text-xl font-bold text-gray-900 mb-1">
+                            {caseItem.filename}
+                          </h3>
+                          <h3 className="text-lg font-normal text-gray-900 mb-1">
                             {caseItem.analysis_name}
                           </h3>
                           <p className="text-sm text-gray-500">
@@ -252,13 +251,13 @@ const ImageReview: React.FC = () => {
                           <p className="text-2xl font-bold text-gray-900">{Math.round(caseItem.fraud_score * 100)}%</p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-600">Claim Value</p>
-                          <p className="text-2xl font-bold text-gray-900">${claimAmount.toLocaleString()}</p>
+                          <p className="text-sm text-gray-600">Total Cost</p>
+                          <p className="text-2xl font-bold text-gray-900">${caseItem.cost || 0}</p>
                         </div>
                       </div>
 
                       {/* Detected Issues */}
-                      {caseItem.detected_issues.length > 0 && (
+                      {JSON.parse(caseItem.detected_issues).length > 0 && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                           <h4 className="text-sm font-medium text-red-800 mb-2">Detected Issues:</h4>
                           <ul className="space-y-1">

@@ -88,7 +88,6 @@ function binVehiclePrice(v) {
       "NumberOfCars": Number(s.numberOfCars ?? 1),
       "Year": Number(s.year),
       "BasePolicy": s.basePolicy,
-      "ClaimAmount": Number(s.claimAmount ?? 0)
     };
   }
 
@@ -125,7 +124,6 @@ function binVehiclePrice(v) {
       "NumberOfCars": Number(s["num-cars"] ?? s.numberOfCars ?? 1),
       "Year": Number(s.year),
       "BasePolicy": s["base-policy"] ?? s.basePolicy ?? 'Liability',
-      "ClaimAmount": Number(s["claim-amount"] ?? s.claimAmount ?? 0)
     };
   }
 
@@ -161,7 +159,6 @@ function binVehiclePrice(v) {
       "NumberOfCars": Number(s.numberOfCars ?? 1),
       "Year": Number(s.year),
       "BasePolicy": s.basePolicy ?? 'Liability',
-      "ClaimAmount": Number(s.claimAmount ?? 0)
     };
   }
 

@@ -6,6 +6,7 @@ import Upload from './pages/Upload';
 import UploadDocument from './pages/UploadDocument';
 import ImageReview from './pages/ImageReview';
 import Cases from './pages/Cases';
+import CaseDetail from './pages/CaseDetail';
 import { StatsProvider } from './contexts/StatsContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBars } from '@fortawesome/free-solid-svg-icons';
@@ -55,6 +56,7 @@ const AppLayout: React.FC = () => {
             <Route path="/upload-document" element={<UploadDocument />} />
             <Route path="/image-review" element={<ImageReview />} />
             <Route path="/cases" element={<Cases />} />
+            <Route path="/cases/:analysisName" element={<CaseDetail />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>

@@ -24,14 +24,14 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
     { id: 'dashboard', label: 'Dashboard', icon: faGrip },
     { id: 'upload', label: 'Upload & Analyze', icon: faUpload },
     { id: 'upload-document', label: 'Upload Document', icon: faFilePdf },
-    { id: 'image-review', label: 'Image Review', icon: faFileAlt },
     { id: 'cases', label: 'Case Review', icon: faShieldAlt },
+    { id: 'image-review', label: 'Image Review', icon: faFileAlt },
   ];
 
   const quickStats = [
-    { label: 'Cases Analyzed', value: casesAnalyzed.toString(), trend: '+12%' },
-    { label: 'Fraud Detected', value: fraudDetected.toString(), trend: '+5%' },
-    { label: 'Money Saved', value: `$${moneySaved.toLocaleString()}`, trend: '+$50K' },
+    { label: 'Cases Analyzed', value: casesAnalyzed.toString() },
+    { label: 'Fraud Detected', value: fraudDetected.toString() },
+    { label: 'Money Saved', value: `$${moneySaved.toLocaleString()}` },
   ];
 
   return (
@@ -110,12 +110,8 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
                   <div key={index} className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{stat.value !== '0' ? stat.value : '-'}</p>
                         <p className="text-xs text-gray-500">{stat.label}</p>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <span className="text-xs text-green-600 font-medium">{stat.trend !== '0' || stat.trend.includes('0') ? stat.trend : '-'}</span>
-                        <FontAwesomeIcon icon={faGrip} className="text-green-500 text-xs" />
+                        <p className={`text-sm font-medium ${stat.label === 'Money Saved' && moneySaved > 0 ? 'text-green-600' : 'text-gray-900'}`}>{stat.value}</p>
                       </div>
                     </div>
                   </div>

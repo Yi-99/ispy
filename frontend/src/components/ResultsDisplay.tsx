@@ -21,15 +21,16 @@ interface UploadedFile {
   error?: string;
   progress?: number;
   fraudRisk?: number;
-  claimAmount?: number;
   keyIndicators?: string[];
+  cost?: number;
 }
 
 interface ResultsDisplayProps {
   files: UploadedFile[];
+  actionButton?: React.ReactNode;
 }
 
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files }) => {
+const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files, actionButton }) => {
   const completedFiles = files.filter(f => f.status === 'completed');
 
   if (completedFiles.length === 0) {
@@ -40,6 +41,7 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files }) => {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-semibold text-gray-900">Individual Results</h2>
+        {actionButton}
       </div>
       
       <div className="space-y-6">
@@ -61,9 +63,6 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files }) => {
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-2 truncate max-w-24" title={file.file.name}>
-                  {file.file.name}
-                </p>
               </div>
               
               {/* Fraud Risk Section */}
@@ -97,9 +96,11 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ files }) => {
                 <div className="mb-4">
                   <span className="text-sm font-medium text-gray-700 uppercase">CLAIM DETAILS</span>
                   <div className="mt-1">
-                    <p className="text-sm text-gray-900 font-bold">
-                      ${(file.claimAmount || 0).toLocaleString()} estimated claim
-                    </p>
+                    {file.cost && (
+                      <p className="text-xs text-gray-600">
+                        ${file.cost.toLocaleString()} analysis cost
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

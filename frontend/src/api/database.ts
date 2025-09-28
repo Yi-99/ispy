@@ -13,6 +13,7 @@ export interface ImageAnalysis {
   ai_analysis: string;
   fraud_analysis: string;
   detected_issues: string;
+  cost: number;
   created_at?: string;
 }
 
@@ -23,6 +24,7 @@ export interface AnalysisMetadata {
   completed_files: number;
   fraud_detected_count: number;
   total_claim_amount: number;
+  total_cost: number;
   created_at?: string;
   file_urls: string[];
 }

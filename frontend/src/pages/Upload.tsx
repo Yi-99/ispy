@@ -10,6 +10,7 @@ import {
   faArrowLeft,
   faFile,
   faShieldAlt,
+  faEye,
 } from '@fortawesome/free-solid-svg-icons';
 import { uploadImage, analyzeImage, type UploadResult, type AnalysisResult } from '../api/imageUpload';
 import { 
@@ -39,8 +40,8 @@ interface UploadedFile {
   error?: string;
   progress?: number;
   fraudRisk?: number;
-  claimAmount?: number;
   keyIndicators?: string[];
+  cost?: number;
 }
 
 interface BatchAnalysisState {
@@ -64,7 +65,7 @@ const Upload: React.FC = () => {
   const [analysisTitle, setAnalysisTitle] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [analysisNames, setAnalysisNames] = useState<string[]>([]);
-  const { updateStats } = useStats();
+  const { updateStats, refreshStats } = useStats();
 
   const navigate = useNavigate();
 
@@ -187,7 +188,6 @@ const Upload: React.FC = () => {
       uploadResult: UploadResult;
       analysisResult: AnalysisResult;
       fraudRisk: number;
-      claimAmount: number;
       keyIndicators: string[];
     }> = [];
 
@@ -198,6 +198,7 @@ const Upload: React.FC = () => {
       completed_files: 0,
       fraud_detected_count: 0,
       total_claim_amount: 0,
+      total_cost: 0,
       file_urls: [],
     });
 
@@ -254,7 +255,6 @@ const Upload: React.FC = () => {
           
           if (analysisResult.success && analysisResult.data) {
             const fraudRisk = Math.round(parseFloat(analysisResult.data.aiScore) * 100);
-            const claimAmount = fraudRisk > 50 ? Math.floor(Math.random() * 15000) + 1000 : 0;
             const keyIndicators = analysisResult.data.detectedIssues || [];
 
             // Store the completed analysis result
@@ -264,7 +264,6 @@ const Upload: React.FC = () => {
               uploadResult,
               analysisResult,
               fraudRisk,
-              claimAmount,
               keyIndicators
             });
         
@@ -276,7 +275,6 @@ const Upload: React.FC = () => {
                       status: 'completed',
                   analysis: analysisResult.data,
                       fraudRisk,
-                      claimAmount,
                       keyIndicators,
                       progress: 100
                 }
@@ -285,7 +283,7 @@ const Upload: React.FC = () => {
         );
 
             // Update global stats
-            updateStats(analysisResult.data.isFraudulent, claimAmount);
+            updateStats(analysisResult.data.isFraudulent, analysisResult.data.totalCost);
           } else {
             setUploadedFiles(prev => 
               prev.map(f => 
@@ -339,6 +337,7 @@ const Upload: React.FC = () => {
       ai_analysis: result.analysisResult.data?.aiAnalysis || '',
       fraud_analysis: result.analysisResult.data?.fraudAnalysis || '',
       detected_issues: JSON.stringify(result.keyIndicators),
+      cost: Math.round((Math.random() * 9000 + 1000)), // Random cost between $1,000-$10,000
     }));
 
     console.log('imageAnalysis:', imageAnalysis);
@@ -348,9 +347,23 @@ const Upload: React.FC = () => {
       await saveImageAnalysis(metadata);
     }
 
+    // Update uploaded files with actual database costs
+    setUploadedFiles(prev => 
+      prev.map(file => {
+        const correspondingAnalysis = imageAnalysis.find(analysis => 
+          analysis.filename === (file.url?.split('/').pop() || file.file.name)
+        );
+        return correspondingAnalysis ? {
+          ...file,
+          cost: correspondingAnalysis.cost
+        } : file;
+      })
+    );
+
     // Save batch analysis summary
     const fraudDetectedCount = completedAnalysisResults.filter(result => result.analysisResult.data?.isFraudulent).length;
-    const totalClaimAmount = completedAnalysisResults.reduce((sum, result) => sum + result.claimAmount, 0);
+    const totalClaimAmount = 0; // Not currently tracked in the analysis results
+    const totalCost = imageAnalysis.filter(image => image.is_fraudulent).reduce((sum, img) => sum + img.cost, 0);
     
     const analysisMetadata: AnalysisMetadata = {
       analysis_name: analysisTitle,
@@ -358,6 +371,7 @@ const Upload: React.FC = () => {
       completed_files: completedAnalysisResults.length, // Use the actual number of completed files
       fraud_detected_count: fraudDetectedCount,
       total_claim_amount: totalClaimAmount,
+      total_cost: Math.round(totalCost * 100) / 100, // Round to 2 decimal places
       file_urls: completedAnalysisResults.map(result => result.uploadResult.url || '') // Include the actual file URLs
     };
 
@@ -370,6 +384,22 @@ const Upload: React.FC = () => {
     if (res && res.success && Array.isArray(res.data)) {
       setAnalysisNames(res.data.map((item: { analysis_name: string }) => item.analysis_name));
     }
+    
+    // Update global stats with the batch analysis results
+    for (const result of completedAnalysisResults) {
+      if (result.analysisResult.data?.isFraudulent) {
+        const correspondingAnalysis = imageAnalysis.find(analysis => 
+          analysis.filename === (result.uploadResult.filename || result.file.file.name)
+        );
+        const costForThisFile = correspondingAnalysis?.cost || 0;
+        updateStats(true, costForThisFile);
+      } else {
+        updateStats(false, 0);
+      }
+    }
+    
+    // Refresh stats to show updated totals
+    refreshStats();
     
     setAnalysisCompleted(true);
     setShowResults(true);
@@ -423,7 +453,7 @@ const Upload: React.FC = () => {
               className={`border-2 border-dashed rounded-lg p-12 transition-colors duration-200 cursor-pointer ${
                 isDragOver 
                   ? 'border-blue-400 bg-blue-50' 
-                  : 'border-gray-300 hover:border-blue-400'
+                  : 'border-gray-300 hover:border-blue-400 hover:bg-blue-100'
               }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -664,6 +694,15 @@ const Upload: React.FC = () => {
         {showResults && (
           <ResultsDisplay 
             files={uploadedFiles}
+            actionButton={analysisCompleted ? (
+              <button
+                onClick={() => navigate(`/cases/${encodeURIComponent(analysisTitle)}`)}
+                className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <FontAwesomeIcon icon={faEye} className="mr-2" />
+                View Case Review
+              </button>
+            ) : undefined}
           />
         )}
       </div>
