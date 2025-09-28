@@ -23,7 +23,6 @@ const Sidenav: React.FC<SidenavProps> = ({ isOpen, onToggle, currentPage, onNavi
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: faGrip },
     { id: 'upload', label: 'Upload & Analyze', icon: faUpload },
-    { id: 'upload-document', label: 'Upload Document', icon: faFilePdf },
     { id: 'cases', label: 'Case Review', icon: faShieldAlt },
     { id: 'image-review', label: 'Image Review', icon: faFileAlt },
   ];

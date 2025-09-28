@@ -231,7 +231,7 @@ const Dashboard: React.FC = () => {
 		{
 			title: 'Fraudulent Cases Detected',
 			value: fraudDetected.toString(),
-			change: `${fraudRate}% fraud rate`,
+			change: `${fraudRate}% detection rate`,
 			changeType: 'positive',
 			icon: faExclamationTriangle,
 			iconColor: 'text-red-600',
