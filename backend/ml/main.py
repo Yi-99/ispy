@@ -138,8 +138,7 @@ def train_models(enhanced=False):
             DATASET_CONFIG["test_dir"]
         )
         
-        # Calculate class weights for imbalanced dataset
-        from sklearn.utils.class_weight import compute_class_weight
+        # Calculate class counts for imbalanced dataset
         import torch
         import numpy as np
         
@@ -147,14 +146,9 @@ def train_models(enhanced=False):
         for _, labels in train_loader:
             all_labels.extend(labels.numpy())
         
-        class_weights = compute_class_weight(
-            'balanced',
-            classes=np.unique(all_labels),
-            y=all_labels
-        )
-        class_weights = torch.FloatTensor(class_weights)
+        class_counts = [all_labels.count(0), all_labels.count(1)]
         
-        logger.info(f"Class weights: {class_weights}")
+        logger.info(f"Class counts: Non-fraud: {class_counts[0]}, Fraud: {class_counts[1]}")
         
         # Train different models
         model_names = ['resnet50', 'efficientnet', 'custom_cnn']
@@ -169,10 +163,11 @@ def train_models(enhanced=False):
             trainer = EnhancedFraudTrainer(model_name=model_name)
             
             # Train model
-            val_metrics = trainer.train(train_loader, test_loader, class_weights=class_weights)
+            val_metrics = trainer.train(train_loader, test_loader, class_counts=class_counts)
             
             # Evaluate on test set
-            test_metrics = trainer.evaluate_model(test_loader)
+            test_results, probabilities, targets = trainer.evaluate_with_thresholds(test_loader)
+            test_metrics = test_results[0.5]  # Use 0.5 threshold for standard evaluation
             
             # Store results
             results[model_name] = {
@@ -182,8 +177,6 @@ def train_models(enhanced=False):
             
             # Save plots
             trainer.plot_training_history(RESULTS_DIR / f"{model_name}_training_history.png")
-            trainer.plot_confusion_matrix(test_loader, RESULTS_DIR / f"{model_name}_confusion_matrix.png")
-            trainer.plot_roc_curve(test_loader, RESULTS_DIR / f"{model_name}_roc_curve.png")
         
         # Save results
         import json
